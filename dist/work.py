@@ -1,9 +1,31 @@
 import asyncio
 import random
-from toolz import merge
+from toolz import merge, partial
 
-from .core import read, write, connect, delay
+from .core import read, write, connect, delay, manage_data, serve
 
+
+class Worker(object):
+    def __init__(self, ip, port, center_ip, center_port, bind='*', loop=None):
+        self.ip = ip
+        self.port = port
+        self.center_ip = center_ip
+        self.center_port = center_port
+        self.bind = bind
+        self.loop = loop
+        self.data = dict()
+
+    @asyncio.coroutine
+    def go(self):
+        data_cor = partial(manage_data, self.data)
+        work_cor = partial(work, self.loop, self.data, self.ip, self.port,
+                                 self.center_ip, self.center_port)
+        handlers = {'compute': work_cor,
+                    'get-data': data_cor,
+                    'update-data': data_cor,
+                    'del-data': data_cor}
+
+        yield from serve(self.bind, self.port, handlers, loop=self.loop)
 
 @asyncio.coroutine
 def collect(loop, reader, writer, needed):

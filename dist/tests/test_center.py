@@ -7,7 +7,7 @@ loop = asyncio.get_event_loop()
 
 
 def test_metadata():
-    c = Center(8006, loop=loop)
+    c = Center('127.0.0.1', 8006, loop=loop)
 
     @asyncio.coroutine
     def f():
