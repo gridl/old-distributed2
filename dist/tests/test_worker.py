@@ -1,11 +1,9 @@
-from functools import partial
 import asyncio
-from collections import defaultdict
 from operator import add
 
 from dist.core import serve, read, write, connect, manage_data
 from dist.center import Center
-from dist.work import Worker
+from dist.worker import Worker
 
 loop = asyncio.get_event_loop()
 
