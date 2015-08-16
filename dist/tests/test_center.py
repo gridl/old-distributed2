@@ -13,6 +13,14 @@ def test_metadata():
     def f():
         reader, writer = yield from connect('127.0.0.1', 8006, loop=loop)
 
+        msg = {'op': 'register',
+               'address': 'alice',
+               'reply': True}
+        yield from write(writer, msg)
+        response = yield from read(reader)
+        assert response == b'OK'
+        assert 'alice' in c.has_what
+
         msg = {'op': 'add-keys',
                'address': 'alice',
                'keys': ['x', 'y'],
@@ -44,10 +52,18 @@ def test_metadata():
         assert response == b'OK'
 
         msg = {'op': 'has-what',
-               'keys': ['alice', 'bob'],
-               'close': True}
+               'keys': ['alice', 'bob']}
         yield from write(writer, msg)
         response = yield from read(reader)
         assert response == {'alice': set(['x', 'y']), 'bob': set(['z'])}
+
+        msg = {'op': 'unregister',
+               'address': 'alice',
+               'reply': True,
+               'close': True}
+        yield from write(writer, msg)
+        response = yield from read(reader)
+        assert response == b'OK'
+        assert 'alice' not in c.has_what
 
     loop.run_until_complete(asyncio.gather(c.go(), f()))

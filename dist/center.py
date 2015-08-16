@@ -20,12 +20,24 @@ class Center(object):
         handlers = {'add-keys': cor,
                     'del-keys': cor,
                     'who-has': cor,
-                    'has-what': cor}
+                    'has-what': cor,
+                    'register': cor,
+                    'unregister': cor}
 
         yield from serve(self.bind, self.port, handlers, loop=self.loop)
 
 @asyncio.coroutine
 def manage_metadata(who_has, has_what, reader, writer, msg):
+    if msg['op'] == 'register':
+        has_what[msg['address']] = set(msg.get('keys', ()))
+        if msg.get('reply'):
+            yield from write(writer, b'OK')
+    if msg['op'] == 'unregister':
+        keys = has_what.pop(msg['address'])
+        for key in keys:
+            who_has[key].remove(msg['address'])
+        if msg.get('reply'):
+            yield from write(writer, b'OK')
     if msg['op'] == 'add-keys':
         has_what[msg['address']].update(msg['keys'])
         for key in msg['keys']:
