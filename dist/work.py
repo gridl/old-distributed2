@@ -52,7 +52,7 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
 
     data[key] = result
 
-    yield from write(m_writer, {'op': 'register',
+    yield from write(m_writer, {'op': 'add-keys',
                                 'address': (ip, port),
                                 'keys': [key],
                                 'reply': True,
