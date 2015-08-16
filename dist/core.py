@@ -45,6 +45,10 @@ def client_connected(handlers, reader, writer):
     try:
         while True:
             msg = yield from read(reader)
+            if msg['op'] == 'close':
+                if msg.get('reply'):
+                    yield from write(writer, b'OK')
+                break
             handler = handlers[msg['op']]
             yield from handler(reader, writer, msg)
             if msg.get('close'):
@@ -75,3 +79,15 @@ def manage_data(data, reader, writer, msg):
 
 def serve(bind, port, handlers, loop=None):
     return asyncio.start_server(client_connected(handlers), bind, port, loop=loop)
+
+
+from concurrent.futures import ThreadPoolExecutor
+
+
+executor = ThreadPoolExecutor(20)
+
+
+def delay(loop, func, *args, **kwargs):
+    """ Run function in separate thread, turn into coroutine """
+    future = executor.submit(func, *args, **kwargs)
+    return asyncio.futures.wrap_future(future, loop=loop)
