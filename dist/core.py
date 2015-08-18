@@ -91,3 +91,26 @@ def delay(loop, func, *args, **kwargs):
     """ Run function in separate thread, turn into coroutine """
     future = executor.submit(func, *args, **kwargs)
     return asyncio.futures.wrap_future(future, loop=loop)
+
+
+@asyncio.coroutine
+def send_recv(reader, writer, reply=True, **kwargs):
+    """ Send and recv with a reader/writer pair
+
+    Keyword arguments turn into the message
+
+    response = yield from send_recv(reader, writer, op='ping', reply=True)
+    """
+    if isinstance(reader, (bytes, str)) and isinstance(writer, int):
+        reader, writer = yield from asyncio.open_connection(reader, writer,
+                                                    kwargs.pop('loop', None))
+    msg = kwargs
+    msg['reply'] = reply
+    yield from write(writer, msg)
+    if reply:
+        response = yield from read(reader)
+    else:
+        response = None
+    if kwargs.get('close'):
+        writer.close()
+    return response

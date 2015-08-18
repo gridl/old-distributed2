@@ -26,6 +26,7 @@ class Center(object):
 
         yield from serve(self.bind, self.port, handlers, loop=self.loop)
 
+
 @asyncio.coroutine
 def manage_metadata(who_has, has_what, reader, writer, msg):
     if msg['op'] == 'register':
