@@ -103,7 +103,7 @@ def send_recv(reader, writer, reply=True, **kwargs):
     """
     if isinstance(reader, (bytes, str)) and isinstance(writer, int):
         reader, writer = yield from asyncio.open_connection(reader, writer,
-                                                    kwargs.pop('loop', None))
+                                                    loop=kwargs.pop('loop', None))
     msg = kwargs
     msg['reply'] = reply
     yield from write(writer, msg)

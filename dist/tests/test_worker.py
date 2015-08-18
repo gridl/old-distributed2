@@ -1,7 +1,7 @@
 import asyncio
 from operator import add
 
-from dist.core import serve, read, write, connect, manage_data
+from dist.core import serve, read, write, connect, manage_data, send_recv
 from dist.center import Center
 from dist.worker import Worker
 
@@ -19,26 +19,14 @@ def test_worker():
         a_reader, a_writer = yield from connect('127.0.0.1', a.port, loop=loop)
         b_reader, b_writer = yield from connect('127.0.0.1', b.port, loop=loop)
 
-        msg = {'op': 'compute',
-               'key': 'x',
-               'function': add,
-               'args': [1, 2],
-               'needed': [],
-               'reply': True}
-        yield from write(a_writer, msg)
-        response = yield from read(a_reader)
+        response = yield from send_recv(a_reader, a_writer, op='compute',
+        key='x', function=add, args=[1, 2], needed=[], reply=True)
         assert response == b'OK'
         assert a.data['x'] == 3
         assert c.who_has['x'] == set([('127.0.0.1', a.port)])
 
-        msg = {'op': 'compute',
-               'key': 'y',
-               'function': add,
-               'args': ['x', 10],
-               'needed': ['x'],
-               'reply': True}
-        yield from write(b_writer, msg)
-        response = yield from read(b_reader)
+        response = yield from send_recv(b_reader, b_writer, op='compute',
+        key='y', function=add, args=['x', 10], needed=['x'], reply=True)
         assert response == b'OK'
         assert b.data['y'] == 13
         assert c.who_has['y'] == set([('127.0.0.1', b.port)])

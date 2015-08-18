@@ -2,7 +2,7 @@ import asyncio
 import random
 from toolz import merge, partial
 
-from .core import read, write, connect, delay, manage_data, serve
+from .core import read, write, connect, delay, manage_data, serve, send_recv
 
 
 class Worker(object):
@@ -27,21 +27,19 @@ class Worker(object):
 
         yield from serve(self.bind, self.port, handlers, loop=self.loop)
 
+
 @asyncio.coroutine
 def collect(loop, reader, writer, needed):
-    msg = {'op': 'who-has', 'keys': needed}
-    yield from write(writer, msg)
-    who_has = yield from read(reader)
+    who_has = yield from send_recv(reader, writer, op='who-has', keys=needed,
+            reply=True)
     assert set(who_has) == set(needed)
 
     # TODO: This should all be done in parallel and in fewer messages
     results = []
     for key, addresses in who_has.items():
         host, port = random.choice(list(addresses))
-        w_reader, w_writer = yield from connect(host, port, loop=loop)
-        msg = {'op': 'get-data', 'keys': [key], 'close': True}
-        yield from write(w_writer, msg)
-        result = yield from read(w_reader)
+        result = yield from send_recv(host, port, op='get-data', keys=[key],
+                loop=loop, reply=True, close=True)
         results.append(result)
 
     # TODO: Update metadata to say that we have this data
