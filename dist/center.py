@@ -33,12 +33,14 @@ def manage_metadata(who_has, has_what, reader, writer, msg):
         has_what[msg['address']] = set(msg.get('keys', ()))
         if msg.get('reply'):
             yield from write(writer, b'OK')
+
     if msg['op'] == 'unregister':
         keys = has_what.pop(msg['address'])
         for key in keys:
             who_has[key].remove(msg['address'])
         if msg.get('reply'):
             yield from write(writer, b'OK')
+
     if msg['op'] == 'add-keys':
         has_what[msg['address']].update(msg['keys'])
         for key in msg['keys']:
@@ -58,9 +60,15 @@ def manage_metadata(who_has, has_what, reader, writer, msg):
             yield from write(writer, b'OK')
 
     if msg['op'] == 'who-has':
-        result = {k: who_has[k] for k in msg['keys']}
+        if 'keys' in msg:
+            result = {k: who_has[k] for k in msg['keys']}
+        else:
+            result = who_has
         yield from write(writer, result)
 
     if msg['op'] == 'has-what':
-        result = {k: has_what[k] for k in msg['keys']}
+        if 'keys' in msg:
+            result = {k: has_what[k] for k in msg['keys']}
+        else:
+            result = has_what
         yield from write(writer, result)

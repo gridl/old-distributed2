@@ -25,6 +25,11 @@ class Worker(object):
                     'update-data': data_cor,
                     'del-data': data_cor}
 
+        resp = yield from send_recv(self.center_ip, self.center_port,
+                                    op='register', address=(self.ip, self.port),
+                                    reply=True, close=True)
+        assert resp == b'OK'
+
         yield from serve(self.bind, self.port, handlers, loop=self.loop)
 
 

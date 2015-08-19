@@ -102,8 +102,8 @@ def send_recv(reader, writer, reply=True, **kwargs):
     response = yield from send_recv(reader, writer, op='ping', reply=True)
     """
     if isinstance(reader, (bytes, str)) and isinstance(writer, int):
-        reader, writer = yield from asyncio.open_connection(reader, writer,
-                                                    loop=kwargs.pop('loop', None))
+        reader, writer = yield from connect(reader, writer,
+                                            loop=kwargs.pop('loop', None))
     msg = kwargs
     msg['reply'] = reply
     yield from write(writer, msg)
