@@ -9,6 +9,12 @@ from toolz import curry
 
 @asyncio.coroutine
 def read(reader):
+    """ Read Python object from reader socket
+
+    Uses dill to deserialize.
+
+    Reads two messages, eight bytes of message length, followed by the message
+    """
     b = b''
     while len(b) < 8:
         b += yield from reader.read(8 - len(b))
@@ -24,6 +30,12 @@ def read(reader):
 
 @asyncio.coroutine
 def write(writer, msg):
+    """ Write Python object to writer socket
+
+    Uses dill to serialize.
+
+    Sends two messages, eight bytes of message length, followed by the message
+    """
     if not isinstance(msg, bytes):
         msg = dumps(msg)
     writer.write(struct.pack('L', len(msg)))
@@ -32,6 +44,11 @@ def write(writer, msg):
 
 @asyncio.coroutine
 def connect(host, port, delay=0.1, timeout=None, loop=None):
+    """ Connect to ip/port pair.  Return reader/writer pair
+
+    This is like ``asyncio.open_connection`` but retries if the remote
+    connection is not yet up.
+    """
     reader, writer = None, None
     while not reader:
         try:
@@ -45,6 +62,13 @@ def connect(host, port, delay=0.1, timeout=None, loop=None):
 @curry
 @asyncio.coroutine
 def client_connected(handlers, reader, writer):
+    """ Dispatch new connections to coroutine-handlers
+
+    handlers is a dictionary mapping operation names (e.g. {'op': 'get-data'})
+    to coroutines that take ``reader, writer, msg`` triples.
+
+    This is given to ``serve`` which uses ``asyncio.start_server``
+    """
     try:
         while True:
             msg = yield from read(reader)
@@ -62,12 +86,14 @@ def client_connected(handlers, reader, writer):
 
 @asyncio.coroutine
 def pingpong(reader, writer, msg):
+    """ Coroutine to send ping reply """
     assert msg['op'] == 'ping'
     yield from write(writer, b'pong')
 
 
 @asyncio.coroutine
 def manage_data(data, reader, writer, msg):
+    """ Coroutine to serve data from dictionary """
     if msg['op'] == 'get-data':
         out = {k: data.get(k) for k in msg['keys']}
     if msg['op'] == 'update-data':
@@ -120,6 +146,13 @@ def send_recv(reader, writer, reply=True, **kwargs):
 
 
 def sync(loop, cor):
+    """ Run coroutine in event loop running in other thread
+
+    Block and return result.
+
+    See Also:
+        spawn_loop: start up a long running coroutine
+    """
     q = Queue()
     @asyncio.coroutine
     def f():
@@ -131,6 +164,13 @@ def sync(loop, cor):
 
 
 def spawn_loop(cor, loop=None):
+    """ Run a coroutine in a loop in a new thread
+
+    Generally this coroutine is long running, like ``start_server``
+
+    See Also:
+        sync: run short-running coroutine in thread on other thread
+    """
     def f(loop, cor):
         asyncio.set_event_loop(loop)
         loop.run_until_complete(cor)
