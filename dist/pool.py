@@ -90,11 +90,15 @@ class PendingComputation(object):
         assert result == b'OK'
         self._who_has[self.key].add((self.ip, self.port))
         self._has_what[(self.ip, self.port)].add(self.key)
-        return RemoteData(self.key, reader=self.reader, writer=self.writer,
-                          loop=self.loop)
+        self._result = RemoteData(self.key, reader=self.reader,
+                                  writer=self.writer, loop=self.loop)
+        return self._result
 
     def get(self):
-        return sync(self.loop, self._get())
+        try:
+            return self._result
+        except AttributeError:
+            return sync(self.loop, self._get())
 
 
 class RemoteData(object):
@@ -109,10 +113,14 @@ class RemoteData(object):
         result = yield from send_recv(self.reader, self.writer, op='get-data',
                                       keys=[self.key], reply=True, close=True)
         self.writer.close()
-        return result[self.key]
+        self._result = result[self.key]
+        return self._result
 
     def get(self):
-        return sync(self.loop, self._get())
+        try:
+            return self._result
+        except AttributeError:
+            return sync(self.loop, self._get())
 
 
 def choose_worker(needed, who_has, has_what):

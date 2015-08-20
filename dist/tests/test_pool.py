@@ -88,4 +88,5 @@ def test_cluster():
         pc = pool.apply_async(add, [1, 2], {})
         x = pc.get()
         assert x.get() == 3
+        assert x.get() == 3
         pool.close()
