@@ -10,10 +10,14 @@ from .core import (read, write, connect, delay, manage_data, serve, send_recv,
 
 
 class Pool(object):
-    def __init__(self, center_ip, center_port, loop=None):
+    def __init__(self, center_ip, center_port, loop=None, start=True):
         self.center_ip = center_ip
         self.center_port = center_port
         self.loop = loop or asyncio.new_event_loop()
+
+        if start:
+            self.start()
+            self.sync_center()
 
     @asyncio.coroutine
     def _sync_center(self):
