@@ -1,5 +1,6 @@
 import asyncio
 from operator import add
+from time import sleep
 
 from dist.core import serve, read, write, connect, manage_data, send_recv
 from dist.center import Center
@@ -43,3 +44,15 @@ def test_worker():
         c.close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
+
+
+def test_thread():
+    c = Center('127.0.0.1', 8000, start=True, block=False)
+    assert c.loop.is_running()
+    w = Worker('127.0.0.1', 8001, c.ip, c.port, start=True, block=False)
+    assert w.loop.is_running()
+    while not hasattr(w, 'server'):
+        sleep(0.01)
+    c.close()
+    w.close()
+    assert not w.loop.is_running()

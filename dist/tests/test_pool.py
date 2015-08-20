@@ -67,7 +67,7 @@ def cluster():
     cor2 = asyncio.wait([stop(), cor], loop=loop,
             return_when=asyncio.FIRST_COMPLETED)
 
-    thread, loop = spawn_loop(cor2, loop)
+    thread, loop = spawn_loop(cor, loop)
 
     try:
         yield c, a, b

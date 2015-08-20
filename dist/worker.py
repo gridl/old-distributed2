@@ -2,18 +2,23 @@ import asyncio
 import random
 from toolz import merge, partial
 
-from .core import read, write, connect, delay, manage_data, serve, send_recv
+from .core import (read, write, connect, delay, manage_data, serve, send_recv,
+        spawn_loop)
 
 
 class Worker(object):
-    def __init__(self, ip, port, center_ip, center_port, bind='*', loop=None):
+    def __init__(self, ip, port, center_ip, center_port, bind='*', loop=None,
+                 start=False, block=True):
         self.ip = ip
         self.port = port
         self.center_ip = center_ip
         self.center_port = center_port
         self.bind = bind
-        self.loop = loop
+        self.loop = loop or asyncio.new_event_loop()
         self.data = dict()
+
+        if start:
+            self.start(block)
 
     @asyncio.coroutine
     def go(self):
@@ -33,8 +38,16 @@ class Worker(object):
         self.server = yield from serve(self.bind, self.port, handlers, loop=self.loop)
         yield from self.server.wait_closed()
 
+    def start(self, block):
+        if block:
+            self.loop.run_until_complete(self.go())
+        else:
+            self._thread, _ = spawn_loop(self.go(), loop=self.loop)
+
     def close(self):
-        self.server.close()
+        self.loop.call_soon_threadsafe(self.server.close)
+        if hasattr(self, '_thread'):
+            self._thread.join()
 
 
 @asyncio.coroutine
