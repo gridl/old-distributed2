@@ -41,4 +41,6 @@ def test_metadata():
         assert response == b'OK'
         assert 'alice' not in c.has_what
 
+        c.close()
+
     loop.run_until_complete(asyncio.gather(c.go(), f()))

@@ -8,10 +8,10 @@ loop = asyncio.get_event_loop()
 
 def test_server():
     handlers = {'ping': pingpong}
-    s = serve('*', 8003, handlers, loop=loop)
 
     @asyncio.coroutine
     def f():
+        server = yield from serve('*', 8003, handlers, loop=loop)
         reader, writer = yield from connect('127.0.0.1', 8003, loop=loop)
 
         msg = {'op': 'ping', 'close': True}
@@ -20,8 +20,10 @@ def test_server():
         response = yield from read(reader)
 
         assert response == b'pong'
+        server.close()
+        yield from server.wait_closed()
 
-    loop.run_until_complete(asyncio.gather(s, f()))
+    loop.run_until_complete(asyncio.gather(f()))
 
 
 def test_manage_data():

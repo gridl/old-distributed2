@@ -38,5 +38,8 @@ def test_worker():
 
         a_writer.close()
         b_writer.close()
+        a.close()
+        b.close()
+        c.close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))

@@ -30,7 +30,11 @@ class Worker(object):
                                     reply=True, close=True)
         assert resp == b'OK'
 
-        yield from serve(self.bind, self.port, handlers, loop=self.loop)
+        self.server = yield from serve(self.bind, self.port, handlers, loop=self.loop)
+        yield from self.server.wait_closed()
+
+    def close(self):
+        self.server.close()
 
 
 @asyncio.coroutine
