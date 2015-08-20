@@ -23,12 +23,12 @@ def test_pool():
     def f():
         yield from p._sync_center()
 
-        computation = yield from p._apply_async(add, [1, 2], {})
+        computation = yield from p._apply_async(add, [1, 2])
         x = yield from computation._get()
         result = yield from x._get()
         assert result == 3
 
-        computation = yield from p._apply_async(add, [x, 10], {})
+        computation = yield from p._apply_async(add, [x, 10])
         y = yield from computation._get()
         result = yield from y._get()
         assert result == 13
@@ -83,7 +83,7 @@ def test_cluster():
     with cluster() as (c, a, b):
         pool = Pool(c.ip, c.port)
 
-        pc = pool.apply_async(add, [1, 2], {})
+        pc = pool.apply_async(add, [1, 2])
         x = pc.get()
         assert x.get() == 3
         assert x.get() == 3

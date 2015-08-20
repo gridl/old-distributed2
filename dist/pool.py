@@ -49,7 +49,7 @@ class Pool(object):
         self._thread.join()
 
     @asyncio.coroutine
-    def _apply_async(self, func, args, kwargs, key=None):
+    def _apply_async(self, func, args=(), kwargs={}, key=None):
         needed, args2, kwargs2 = needed_args_kwargs(args, kwargs)
 
         ip, port = choose_worker(needed, self.who_has, self.has_what)
@@ -62,7 +62,7 @@ class Pool(object):
         yield from pc._start(ip, port, self.who_has, self.has_what)
         return pc
 
-    def apply_async(self, func, args, kwargs, key=None):
+    def apply_async(self, func, args=(), kwargs={}, key=None):
         cor = self._apply_async(func, args, kwargs, key)
         return sync(self.loop, cor)
 
