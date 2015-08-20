@@ -1,15 +1,31 @@
 import asyncio
 import random
 from queue import Queue
+import uuid
+
 from toolz import merge, partial, pipe, concat, frequencies
 from toolz.curried import map
-import uuid
 
 from .core import (read, write, connect, delay, manage_data, serve, send_recv,
         spawn_loop, sync)
 
 
 class Pool(object):
+    """ Remote computation pool
+
+    This connect to a metadata ``Center`` and from there learns to where it can
+    dispatch jobs, typically through an ``apply_async`` call.
+
+    Example
+    -------
+
+    >>> pool = Pool(center_ip='192.168.0.100', center_port=8000)  # doctest: +SKIP
+
+    >>> pc = pool.apply_async(func, args, kwargs)  # doctest: +SKIP
+    >>> rd = pc.get()  # doctest: +SKIP
+    >>> rd.get()  # doctest: +SKIP
+    10
+    """
     def __init__(self, center_ip, center_port, loop=None, start=True):
         self.center_ip = center_ip
         self.center_port = center_port
@@ -30,10 +46,15 @@ class Pool(object):
         writer.close()
 
     def sync_center(self):
+        """ Get who_has and has_what dictionaries from a center
+
+        In particular this tells us what workers we have at our disposal
+        """
         cor = self._sync_center()
         return sync(self.loop, cor)
 
     def start(self):
+        """ Start an event loop in a thread """
         self._kill_q = Queue()
 
         @asyncio.coroutine
@@ -45,6 +66,7 @@ class Pool(object):
         self._thread, _ = spawn_loop(f(), loop=self.loop)
 
     def close(self):
+        """ Close the thread that manages our event loop """
         self._kill_q.put('')
         self._thread.join()
 
@@ -63,11 +85,29 @@ class Pool(object):
         return pc
 
     def apply_async(self, func, args=(), kwargs={}, key=None):
+        """ Execute a function in a remote worker
+
+        If an arg or a kwarg is a ``RemoteData`` object then that data will be
+        communicated as necessary among the ``Worker`` peers.
+        """
         cor = self._apply_async(func, args, kwargs, key)
         return sync(self.loop, cor)
 
 
 class PendingComputation(object):
+    """ A future for a computation that done in a remote worker
+
+    This is generally created by ``Pool.apply_async``.  It can be converted
+    into a ``RemoteData`` object by calling the ``.get()`` method.
+
+    Example
+    -------
+
+    >>> pc = pool.apply_async(func, args, kwargs)  # doctest: +SKIP
+    >>> rd = pc.get()  # doctest: +SKIP
+    >>> rd.get()  # doctest: +SKIP
+    10
+    """
     def __init__(self, key, function, args, kwargs, needed, loop=None):
         self.key = key
         self.function = function
@@ -106,6 +146,20 @@ class PendingComputation(object):
 
 
 class RemoteData(object):
+    """ Data living on a remote worker
+
+    This is created by ``PendingComputation.get()`` which is in turn created by
+    ``Pool.apply_async()``.  One can retrive the data from the remote worker by
+    calling the ``.get()`` method on this object
+
+    Example
+    -------
+
+    >>> pc = pool.apply_async(func, args, kwargs)  # doctest: +SKIP
+    >>> rd = pc.get()  # doctest: +SKIP
+    >>> rd.get()  # doctest: +SKIP
+    10
+    """
     def __init__(self, key, reader=None, writer=None, loop=None):
         self.key = key
         self.reader = reader
