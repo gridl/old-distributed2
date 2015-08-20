@@ -1,4 +1,4 @@
-from dist.core import serve, read, write, pingpong, manage_data, connect
+from distributed.core import serve, read, write, pingpong, manage_data, connect
 from functools import partial
 import asyncio
 

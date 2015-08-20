@@ -2,10 +2,10 @@ import asyncio
 from operator import add
 from queue import Queue
 
-from dist.core import serve, read, write, connect, manage_data, send_recv
-from dist.center import Center
-from dist.worker import Worker
-from dist.pool import Pool, spawn_loop
+from distributed.core import serve, read, write, connect, manage_data, send_recv
+from distributed.center import Center
+from distributed.worker import Worker
+from distributed.pool import Pool, spawn_loop
 from contextlib import contextmanager
 
 loop = asyncio.get_event_loop()

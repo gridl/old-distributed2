@@ -1,8 +1,8 @@
 import asyncio
 from time import sleep
 
-from dist.core import read, write, connect, send_recv
-from dist.center import Center
+from distributed.core import read, write, connect, send_recv
+from distributed.center import Center
 
 loop = asyncio.get_event_loop()
 

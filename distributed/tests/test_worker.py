@@ -2,9 +2,9 @@ import asyncio
 from operator import add
 from time import sleep
 
-from dist.core import serve, read, write, connect, manage_data, send_recv
-from dist.center import Center
-from dist.worker import Worker
+from distributed.core import serve, read, write, connect, manage_data, send_recv
+from distributed.center import Center
+from distributed.worker import Worker
 
 loop = asyncio.get_event_loop()
 
