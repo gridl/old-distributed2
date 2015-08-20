@@ -8,6 +8,26 @@ from .core import read, write, serve, spawn_loop
 
 
 class Center(object):
+    """ Central metadata storage
+
+    A Center serves as central point of metadata storage among workers.  It
+    maintains dictionaries of which worker has which keys and which keys are
+    owned by which workers.  Computational systems tend to check in with a
+    Center to determine their available resources.
+
+    Example
+    -------
+
+    A center can be run in an event loop
+
+    >>> c = Center('192.168.0.123', 8000)
+    >>> coroutine = c.go()
+
+    Or separately in a thread
+
+    >>> c = Center('192.168.0.123', 8000, start=True, block=False)  # doctest: +SKIP
+    >>> c.close()  # doctest: +SKIP
+    """
     def __init__(self, ip, port, bind='*', loop=None, start=False, block=True):
         self.ip = ip
         self.port = port
@@ -46,6 +66,17 @@ class Center(object):
 
 @asyncio.coroutine
 def manage_metadata(who_has, has_what, reader, writer, msg):
+    """ Main coroutine to manage metadata
+
+    Operations:
+
+    *  register: register a new worker
+    *  unregister: remove a known worker
+    *  add-keys: state that a worker has gained certain keys
+    *  del-keys: state that a worker has lost certain keys
+    *  who-has: ask which workers have certain keys
+    *  has-what: ask which keys a set of workers has
+    """
     if msg['op'] == 'register':
         has_what[msg['address']] = set(msg.get('keys', ()))
         if msg.get('reply'):

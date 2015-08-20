@@ -7,6 +7,37 @@ from .core import (read, write, connect, delay, manage_data, serve, send_recv,
 
 
 class Worker(object):
+    """ Worker node in a distributed network
+
+    Workers do the following:
+
+    1.  Manage and serve from a dictionary of local data
+    2.  Perform computations on that data and on data from peers
+    3.  Interact with peers and with a ``Center`` node to acheive 2
+
+    A worker should connect to a ``Center`` node.  It can run in an event loop
+    or separately in a thread.
+
+    Example
+    -------
+
+    Set up a Center on a separate machine
+
+    >>> c = Center('192.168.0.100', 8000)  # doctest: +SKIP
+
+    Run in an event loop
+
+    >>> w = Worker('192.168.0.101', 8001,
+    ...            center_ip='192.168.0.100', center_port=8000) # doctest: +SKIP
+    >>> coroutine = w.go()
+
+    Can run separately in a thread
+
+    >>> w = Worker('192.168.0.101', 8001,
+    ...            center_ip='192.168.0.100', center_port=8000,
+    ...            start=True, block=False)  # doctest: +SKIP
+    """
+
     def __init__(self, ip, port, center_ip, center_port, bind='*', loop=None,
                  start=False, block=True):
         self.ip = ip
@@ -39,6 +70,10 @@ class Worker(object):
         yield from self.server.wait_closed()
 
     def start(self, block):
+        """ Start worker.
+
+        If block is false then run the event loop in a separate thread
+        """
         if block:
             self.loop.run_until_complete(self.go())
         else:
@@ -72,36 +107,32 @@ def collect(loop, reader, writer, needed):
 @asyncio.coroutine
 def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     m_reader, m_writer = yield from connect(metadata_ip, metadata_port, loop)
-
     assert msg['op'] == 'compute'
 
+    # Unpack message
     function = msg['function']
     key = msg['key']
     args = msg.get('args', ())
     kwargs = msg.get('kwargs', {})
     needed = msg.get('needed', [])
 
+    # Collect data from peers
     if msg['needed']:
         other = yield from collect(loop, m_reader, m_writer, needed)
         data2 = merge(data, other)
     else:
         data2 = data
 
+    # Fill args with data, compute in separate thread
     args2 = keys_to_data(args, data2)
     kwargs2 = keys_to_data(kwargs, data2)
-
-    result = yield from delay(loop, msg['function'], *args2, **kwargs)
-
+    result = yield from delay(loop, function, *args2, **kwargs)
     data[key] = result
 
-    yield from write(m_writer, {'op': 'add-keys',
-                                'address': (ip, port),
-                                'keys': [key],
-                                'reply': True,
-                                'close': True})
-    response = yield from read(m_reader)
-    assert response == b'OK'
-    m_writer.close()
+    # Tell center about or new data
+    response = yield from send_recv(m_reader, m_writer, op='add-keys',
+            address=(ip, port), keys=[key], reply=True, close=True)
+    assert response == b'OK'  # TODO: do this asynchronously?
 
     if msg.get('reply'):
         yield from write(writer, b'OK')
