@@ -1,18 +1,23 @@
 import asyncio
 from collections import defaultdict
 from functools import partial
+from queue import Queue
+from time import sleep
 
-from .core import read, write, serve
+from .core import read, write, serve, spawn_loop
 
 
 class Center(object):
-    def __init__(self, ip, port, bind='*', loop=None):
+    def __init__(self, ip, port, bind='*', loop=None, start=False, block=True):
         self.ip = ip
         self.port = port
         self.bind = bind
         self.who_has = defaultdict(set)
         self.has_what = defaultdict(set)
-        self.loop = loop
+        self.loop = loop or asyncio.new_event_loop()
+
+        if start:
+            self.start(block)
 
     @asyncio.coroutine
     def go(self):
@@ -27,8 +32,16 @@ class Center(object):
         self.server = yield from serve(self.bind, self.port, handlers, loop=self.loop)
         yield from self.server.wait_closed()
 
+    def start(self, block):
+        if block:
+            self.loop.run_until_complete(self.go())
+        else:
+            self._thread, _ = spawn_loop(self.go(), loop=self.loop)
+
     def close(self):
-        self.server.close()
+        self.loop.call_soon_threadsafe(self.server.close)
+        if hasattr(self, '_thread'):
+            self._thread.join()
 
 
 @asyncio.coroutine

@@ -1,4 +1,5 @@
 import asyncio
+from time import sleep
 
 from dist.core import read, write, connect, send_recv
 from dist.center import Center
@@ -44,3 +45,12 @@ def test_metadata():
         c.close()
 
     loop.run_until_complete(asyncio.gather(c.go(), f()))
+
+
+def test_thread():
+    c = Center('127.0.0.1', 8000, start=True, block=False)
+    assert c.loop.is_running()
+    while not hasattr(c, 'server'):
+        sleep(0.01)
+    c.close()
+    assert not c.loop.is_running()
