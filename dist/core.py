@@ -1,5 +1,8 @@
 import asyncio
 import struct
+from queue import Queue
+from threading import Thread
+
 from dill import loads, dumps
 from toolz import curry
 
@@ -114,3 +117,24 @@ def send_recv(reader, writer, reply=True, **kwargs):
     if kwargs.get('close'):
         writer.close()
     return response
+
+
+def sync(loop, cor):
+    q = Queue()
+    @asyncio.coroutine
+    def f():
+        result = yield from cor
+        q.put(result)
+
+    loop.call_soon_threadsafe(asyncio.async, f())
+    return q.get()
+
+
+def spawn_loop(cor, loop=None):
+    def f(loop, cor):
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(cor)
+
+    t = Thread(target=f, args=(loop, cor))
+    t.start()
+    return t, loop

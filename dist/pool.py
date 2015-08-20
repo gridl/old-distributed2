@@ -1,12 +1,12 @@
 import asyncio
 import random
-from threading import Thread
 from queue import Queue
 from toolz import merge, partial, pipe, concat, frequencies
 from toolz.curried import map
 import uuid
 
-from .core import read, write, connect, delay, manage_data, serve, send_recv
+from .core import (read, write, connect, delay, manage_data, serve, send_recv,
+        spawn_loop, sync)
 
 
 class Pool(object):
@@ -149,24 +149,3 @@ def needed_args_kwargs(args, kwargs):
             kwargs2[k] = arg
 
     return needed, args2, kwargs2
-
-
-def sync(loop, cor):
-    q = Queue()
-    @asyncio.coroutine
-    def f():
-        result = yield from cor
-        q.put(result)
-
-    loop.call_soon_threadsafe(asyncio.async, f())
-    return q.get()
-
-
-def spawn_loop(cor, loop=None):
-    def f(loop, cor):
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(cor)
-
-    t = Thread(target=f, args=(loop, cor))
-    t.start()
-    return t, loop
