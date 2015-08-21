@@ -6,8 +6,7 @@ import uuid
 from toolz import merge, partial, pipe, concat, frequencies
 from toolz.curried import map
 
-from .core import (read, write, connect, delay, manage_data, serve, send_recv,
-        spawn_loop, sync)
+from .core import read, write, connect, send_recv, spawn_loop, sync
 
 
 class Pool(object):

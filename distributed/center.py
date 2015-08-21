@@ -4,7 +4,7 @@ from functools import partial
 from queue import Queue
 from time import sleep
 
-from .core import read, write, serve, spawn_loop
+from .core import read, write, client_connected, spawn_loop
 
 
 class Center(object):
@@ -49,7 +49,9 @@ class Center(object):
                     'register': cor,
                     'unregister': cor}
 
-        self.server = yield from serve(self.bind, self.port, handlers, loop=self.loop)
+        self.server = yield from asyncio.start_server(
+                client_connected(handlers), self.bind, self.port,
+                loop=self.loop)
         yield from self.server.wait_closed()
 
     def start(self, block):

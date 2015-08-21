@@ -111,10 +111,6 @@ def manage_data(data, reader, writer, msg):
     yield from write(writer, out)
 
 
-def serve(bind, port, handlers, loop=None):
-    return asyncio.start_server(client_connected(handlers), bind, port, loop=loop)
-
-
 from concurrent.futures import ThreadPoolExecutor
 
 

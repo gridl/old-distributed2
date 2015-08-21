@@ -1,4 +1,5 @@
-from distributed.core import serve, read, write, pingpong, manage_data, connect
+from distributed.core import (read, write, pingpong, manage_data, connect,
+        client_connected)
 from functools import partial
 import asyncio
 
@@ -11,7 +12,8 @@ def test_server():
 
     @asyncio.coroutine
     def f():
-        server = yield from serve('*', 8003, handlers, loop=loop)
+        server = yield from asyncio.start_server(client_connected(handlers),
+                '*', 8003, loop=loop)
         reader, writer = yield from connect('127.0.0.1', 8003, loop=loop)
 
         msg = {'op': 'ping', 'close': True}
@@ -32,7 +34,8 @@ def test_manage_data():
                 'get-data': partial(manage_data, d),
                 'update-data': partial(manage_data, d),
                 'del-data': partial(manage_data, d)}
-    s = serve('*', 8004, handlers, loop=loop)
+    s = asyncio.start_server(client_connected(handlers),
+                             '*', 8004, loop=loop)
 
     @asyncio.coroutine
     def f():

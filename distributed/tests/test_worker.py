@@ -2,7 +2,7 @@ import asyncio
 from operator import add
 from time import sleep
 
-from distributed.core import serve, read, write, connect, manage_data, send_recv
+from distributed.core import read, write, connect, send_recv
 from distributed.center import Center
 from distributed.worker import Worker
 

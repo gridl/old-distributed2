@@ -2,8 +2,8 @@ import asyncio
 import random
 from toolz import merge, partial
 
-from .core import (read, write, connect, delay, manage_data, serve, send_recv,
-        spawn_loop)
+from .core import (read, write, connect, delay, manage_data, client_connected,
+        send_recv, spawn_loop)
 
 
 class Worker(object):
@@ -66,7 +66,9 @@ class Worker(object):
                                     reply=True, close=True)
         assert resp == b'OK'
 
-        self.server = yield from serve(self.bind, self.port, handlers, loop=self.loop)
+        self.server = yield from asyncio.start_server(
+                client_connected(handlers), self.bind, self.port,
+                loop=self.loop)
         yield from self.server.wait_closed()
 
     def start(self, block):

@@ -2,7 +2,6 @@ import asyncio
 from operator import add
 from queue import Queue
 
-from distributed.core import serve, read, write, connect, manage_data, send_recv
 from distributed.center import Center
 from distributed.worker import Worker
 from distributed.pool import Pool, spawn_loop
