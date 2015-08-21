@@ -56,3 +56,15 @@ def test_manage_data():
         assert d == {'x': 1}
 
     loop.run_until_complete(asyncio.gather(s, f()))
+
+
+def test_connect_timeout():
+    @asyncio.coroutine
+    def f():
+        try:
+            reader, writer = yield from connect('127.0.0.1', 9876, timeout=0.5)
+            raise Exception("Did not raise")
+        except ConnectionRefusedError:
+            pass
+
+    loop.run_until_complete(f())

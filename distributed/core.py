@@ -2,6 +2,7 @@ import asyncio
 import struct
 from queue import Queue
 from threading import Thread
+from time import time
 
 from dill import loads, dumps
 from toolz import curry
@@ -50,12 +51,16 @@ def connect(host, port, delay=0.1, timeout=None, loop=None):
     connection is not yet up.
     """
     reader, writer = None, None
+    start = time()
     while not reader:
         try:
             reader, writer = yield from asyncio.open_connection(
                     host=host, port=port, loop=loop)
         except OSError:
-            yield from asyncio.sleep(delay)
+            if timeout is not None and time() - start > timeout:
+                raise
+            else:
+                yield from asyncio.sleep(delay)
     return reader, writer
 
 
