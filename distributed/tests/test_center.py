@@ -23,6 +23,8 @@ def test_metadata():
                 address='alice', keys=['x', 'y'], reply=True)
         assert response == b'OK'
 
+        response = yield from send_recv(reader, writer, op='register',
+                                        address='bob', ncores=4)
         response = yield from send_recv(reader, writer, op='add-keys',
                 address='bob', keys=['y', 'z'], reply=True)
         assert response == b'OK'
@@ -38,6 +40,9 @@ def test_metadata():
         response = yield from send_recv(reader, writer, op='has-what',
                 keys=['alice', 'bob'])
         assert response == {'alice': set(['x', 'y']), 'bob': set(['z'])}
+
+        response = yield from send_recv(reader, writer, op='ncores')
+        assert response == {'alice': 4, 'bob': 4}
 
         response = yield from send_recv(reader, writer, op='unregister',
                                         address='alice', reply=True, close=True)

@@ -49,6 +49,7 @@ class Center(object):
                     'who-has': cor,
                     'has-what': cor,
                     'register': cor,
+                    'ncores': cor,
                     'unregister': cor}
 
         self.server = yield from asyncio.start_server(
@@ -125,4 +126,11 @@ def manage_metadata(who_has, has_what, ncores, reader, writer, msg):
             result = {k: has_what[k] for k in msg['keys']}
         else:
             result = has_what
+        yield from write(writer, result)
+
+    if msg['op'] == 'ncores':
+        if 'addresses' in msg:
+            result = {k: ncores[k] for k in msg['addresses']}
+        else:
+            result = ncores
         yield from write(writer, result)

@@ -4,7 +4,7 @@ from queue import Queue
 import uuid
 
 from toolz import merge, partial, pipe, concat, frequencies
-from toolz.curried import map
+from toolz.curried import map, filter
 
 from .core import read, write, connect, send_recv, spawn_loop, sync
 
@@ -41,7 +41,9 @@ class Pool(object):
         self.who_has = yield from send_recv(reader, writer, op='who-has',
                                             reply=True)
         self.has_what = yield from send_recv(reader, writer, op='has-what',
-                                             reply=True, close=True)
+                                             reply=True)
+        self.available_cores = yield from send_recv(reader, writer,
+                            op='ncores', reply=True, close=True)
         writer.close()
 
     def sync_center(self):
@@ -73,14 +75,16 @@ class Pool(object):
     def _apply_async(self, func, args=(), kwargs={}, key=None):
         needed, args2, kwargs2 = needed_args_kwargs(args, kwargs)
 
-        ip, port = choose_worker(needed, self.who_has, self.has_what)
+        ip, port = choose_worker(needed, self.who_has, self.has_what,
+                                 self.available_cores)
 
         if key is None:
             key = str(uuid.uuid1())
 
         pc = PendingComputation(key, func, args2, kwargs2, needed,
                                 loop=self.loop)
-        yield from pc._start(ip, port, self.who_has, self.has_what)
+        yield from pc._start(ip, port, self.who_has, self.has_what,
+                             self.available_cores)
         return pc
 
     def apply_async(self, func, args=(), kwargs={}, key=None):
@@ -116,7 +120,8 @@ class PendingComputation(object):
         self.loop = loop
 
     @asyncio.coroutine
-    def _start(self, ip, port, who_has=None, has_what=None):
+    def _start(self, ip, port, who_has=None, has_what=None,
+               available_cores=None):
         msg = dict(op='compute', key=self.key, function=self.function,
                    args=self.args, kwargs=self.kwargs, needed=self.needed,
                    reply=True)
@@ -124,7 +129,9 @@ class PendingComputation(object):
         self.port = port
         self._has_what = has_what
         self._who_has = who_has
+        self._available_cores = available_cores
         self.reader, self.writer = yield from connect(ip, port)
+        self._available_cores[(ip, port)] -= 1
         yield from write(self.writer, msg)
 
     @asyncio.coroutine
@@ -133,6 +140,7 @@ class PendingComputation(object):
         assert result == b'OK'
         self._who_has[self.key].add((self.ip, self.port))
         self._has_what[(self.ip, self.port)].add(self.key)
+        self._available_cores[(self.ip, self.port)] += 1
         self._result = RemoteData(self.key, reader=self.reader,
                                   writer=self.writer, loop=self.loop)
         return self._result
@@ -180,14 +188,16 @@ class RemoteData(object):
             return sync(self.loop, self._get())
 
 
-def choose_worker(needed, who_has, has_what):
+def choose_worker(needed, who_has, has_what, available_cores):
     """ Select worker to run computation
 
     Currently selects the worker with the most data local
     """
-    counts = pipe(needed, map(who_has.__getitem__), concat, frequencies)
+    workers = {w for w, c in available_cores.items() if c}
+    counts = pipe(needed, map(who_has.__getitem__), concat,
+            filter(workers.__contains__), frequencies)
     if not counts:
-        return random.choice(list(has_what))
+        return random.choice(list(workers))
     else:
         biggest = max(counts.values())
         best = {k: v for k, v in counts.items() if v == biggest}
