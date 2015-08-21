@@ -13,8 +13,8 @@ loop = asyncio.get_event_loop()
 def test_pool():
     c = Center('127.0.0.1', 8017, loop=loop)
 
-    a = Worker('127.0.0.1', 8018, c.ip, c.port, loop=loop, ncores=4)
-    b = Worker('127.0.0.1', 8019, c.ip, c.port, loop=loop, ncores=4)
+    a = Worker('127.0.0.1', 8018, c.ip, c.port, loop=loop, ncores=1)
+    b = Worker('127.0.0.1', 8019, c.ip, c.port, loop=loop, ncores=1)
 
     p = Pool(c.ip, c.port, loop=loop, start=False)
 
@@ -23,9 +23,9 @@ def test_pool():
         yield from p._sync_center()
 
         computation = yield from p._apply_async(add, [1, 2])
-        assert set(p.available_cores.values()) == set([3, 4])
+        assert set(p.available_cores.values()) == set([0, 1])
         x = yield from computation._get()
-        assert list(p.available_cores.values()) == [4, 4]
+        assert list(p.available_cores.values()) == [1, 1]
         result = yield from x._get()
         assert result == 3
 
@@ -35,6 +35,17 @@ def test_pool():
         assert result == 13
 
         assert set((len(a.data), len(b.data))) == set((0, 2))
+
+        x = yield from p._apply_async(add, [1, 2])
+        y = yield from p._apply_async(add, [1, 2])
+        assert list(p.available_cores.values()) == [0, 0]
+        xx = yield from x._get()
+        yield from xx._get()
+        assert set(p.available_cores.values()) == set([0, 1])
+        yy = yield from y._get()
+        yield from yy._get()
+        assert list(p.available_cores.values()) == [1, 1]
+
 
         a.close()
         b.close()
