@@ -29,7 +29,7 @@ class Worker(object):
 
     >>> w = Worker('192.168.0.101', 8001,
     ...            center_ip='192.168.0.100', center_port=8000) # doctest: +SKIP
-    >>> coroutine = w.go()
+    >>> coroutine = w.go()  # doctest: +SKIP
 
     Can run separately in a thread
 
@@ -89,6 +89,7 @@ class Worker(object):
 
 @asyncio.coroutine
 def collect(loop, reader, writer, needed):
+    """ Collect data from peers """
     who_has = yield from send_recv(reader, writer, op='who-has', keys=needed,
             reply=True)
     assert set(who_has) == set(needed)
@@ -108,6 +109,7 @@ def collect(loop, reader, writer, needed):
 
 @asyncio.coroutine
 def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
+    """ Execute function """
     m_reader, m_writer = yield from connect(metadata_ip, metadata_port, loop)
     assert msg['op'] == 'compute'
 
@@ -141,11 +143,12 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
 
 
 def keys_to_data(o, data):
-    """
+    """ Merge known data into tuple or dict
 
-    >>> keys_to_data(('x', 'y'), {'x': 1})
+    >>> data = {'x': 1}
+    >>> keys_to_data(('x', 'y'), data)
     (1, 'y')
-    >>> keys_to_data({'a': 'x', 'b': 'y'}, {'x': 1})
+    >>> keys_to_data({'a': 'x', 'b': 'y'}, data)
     {'a': 1, 'b': 'y'}
     """
     if isinstance(o, (tuple, list)):

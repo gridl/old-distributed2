@@ -112,8 +112,6 @@ def manage_data(data, reader, writer, msg):
 
 
 from concurrent.futures import ThreadPoolExecutor
-
-
 executor = ThreadPoolExecutor(20)
 
 
