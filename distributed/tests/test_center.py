@@ -14,8 +14,10 @@ def test_metadata():
     def f():
         reader, writer = yield from connect('127.0.0.1', 8006, loop=loop)
 
-        response = yield from send_recv(reader, writer, op='register', address='alice')
+        response = yield from send_recv(reader, writer, op='register',
+                                        address='alice', ncores=4)
         assert 'alice' in c.has_what
+        assert c.ncores['alice'] == 4
 
         response = yield from send_recv(reader, writer, op='add-keys',
                 address='alice', keys=['x', 'y'], reply=True)
@@ -41,6 +43,7 @@ def test_metadata():
                                         address='alice', reply=True, close=True)
         assert response == b'OK'
         assert 'alice' not in c.has_what
+        assert 'alice' not in c.ncores
 
         c.close()
 

@@ -12,7 +12,7 @@ from .core import read, write, connect, send_recv, spawn_loop, sync
 class Pool(object):
     """ Remote computation pool
 
-    This connect to a metadata ``Center`` and from there learns to where it can
+    This connects to a metadata ``Center`` and from there learns to where it can
     dispatch jobs, typically through an ``apply_async`` call.
 
     Example

@@ -1,10 +1,13 @@
 import asyncio
 import random
 from toolz import merge, partial
+from multiprocessing.pool import ThreadPool
 
 from .core import (read, write, connect, delay, manage_data, client_connected,
         send_recv, spawn_loop)
 
+
+_ncores = ThreadPool()._processes
 
 class Worker(object):
     """ Worker node in a distributed network
@@ -39,13 +42,14 @@ class Worker(object):
     """
 
     def __init__(self, ip, port, center_ip, center_port, bind='*', loop=None,
-                 start=False, block=True):
+                 start=False, block=True, ncores=None):
         self.ip = ip
         self.port = port
         self.center_ip = center_ip
         self.center_port = center_port
         self.bind = bind
         self.loop = loop or asyncio.new_event_loop()
+        self.ncores = ncores or _ncores
         self.data = dict()
 
         if start:
@@ -62,7 +66,8 @@ class Worker(object):
                     'del-data': data_cor}
 
         resp = yield from send_recv(self.center_ip, self.center_port,
-                                    op='register', address=(self.ip, self.port),
+                                    op='register', ncores=self.ncores,
+                                    address=(self.ip, self.port),
                                     reply=True, close=True)
         assert resp == b'OK'
 

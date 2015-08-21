@@ -34,6 +34,7 @@ class Center(object):
         self.bind = bind
         self.who_has = defaultdict(set)
         self.has_what = defaultdict(set)
+        self.ncores = dict()
         self.loop = loop or asyncio.new_event_loop()
 
         if start:
@@ -41,7 +42,8 @@ class Center(object):
 
     @asyncio.coroutine
     def go(self):
-        cor = partial(manage_metadata, self.who_has, self.has_what)
+        cor = partial(manage_metadata, self.who_has, self.has_what,
+                                       self.ncores)
         handlers = {'add-keys': cor,
                     'del-keys': cor,
                     'who-has': cor,
@@ -67,7 +69,7 @@ class Center(object):
 
 
 @asyncio.coroutine
-def manage_metadata(who_has, has_what, reader, writer, msg):
+def manage_metadata(who_has, has_what, ncores, reader, writer, msg):
     """ Main coroutine to manage metadata
 
     Operations:
@@ -81,11 +83,13 @@ def manage_metadata(who_has, has_what, reader, writer, msg):
     """
     if msg['op'] == 'register':
         has_what[msg['address']] = set(msg.get('keys', ()))
+        ncores[msg['address']] = msg['ncores']
         if msg.get('reply'):
             yield from write(writer, b'OK')
 
     if msg['op'] == 'unregister':
         keys = has_what.pop(msg['address'])
+        del ncores[msg['address']]
         for key in keys:
             who_has[key].remove(msg['address'])
         if msg.get('reply'):
