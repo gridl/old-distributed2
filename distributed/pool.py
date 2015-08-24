@@ -103,7 +103,7 @@ class Pool(object):
     def _close_connections(self):
         """ Close active connections """
         for reader, writer in self._reader_writers:
-            if writer.transport._sock:
+            if writer.transport._sock and not writer.transport._closing:
                 result = yield from send_recv(reader, writer, op='close',
                                               reply=True, close=True)
 
