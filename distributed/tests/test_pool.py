@@ -140,7 +140,7 @@ def test_map_locality():
     def f():
         yield from p._sync_center()
 
-        results = yield from p._map(lambda x: x * 1000, list(range(100)))
+        results = yield from p._map(lambda x: x * 1000, list(range(20)))
 
         assert p.has_what[(a.ip, a.port)].issuperset(a.data)
         assert p.has_what[(b.ip, b.port)].issuperset(b.data)
@@ -153,8 +153,8 @@ def test_map_locality():
         aval = set(a.data.values())
         bval = set(b.data.values())
 
-        assert sum(-v in aval for v in aval) > 0.9 * len(aval)
-        assert sum(-v in bval for v in bval) > 0.9 * len(bval)
+        assert sum(-v in aval for v in aval) > 0.8 * len(aval)
+        assert sum(-v in bval for v in bval) > 0.8 * len(bval)
 
         yield from p._close_connections()
 

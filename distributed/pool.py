@@ -385,10 +385,12 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra, seen, output, i
 
     while shares:                               # Steal work from others
         worker = max(shares, key=lambda w: len(shares[w]))
-        i = shares[worker].pop()
-
-        if not shares[worker]:
+        jobs = shares[worker]
+        if not jobs:
             del shares[worker]
+            continue
+
+        i = jobs.pop()
 
         if i in seen:
             continue
