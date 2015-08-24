@@ -127,3 +127,39 @@ def test_workshare():
     shares, extra = divide_tasks(who_has, needed)
     assert shares == {'Alice': [2, 1], 'Bob': [2, 3]}
     assert extra == {4, 5}
+
+
+def test_map_locality():
+    c = Center('127.0.0.1', 8017, loop=loop)
+
+    a = Worker('127.0.0.1', 8018, c.ip, c.port, loop=loop, ncores=4)
+    b = Worker('127.0.0.1', 8019, c.ip, c.port, loop=loop, ncores=4)
+
+    p = Pool(c.ip, c.port, loop=loop, start=False)
+    @asyncio.coroutine
+    def f():
+        yield from p._sync_center()
+
+        results = yield from p._map(lambda x: x * 1000, list(range(100)))
+
+        assert p.has_what[(a.ip, a.port)].issuperset(a.data)
+        assert p.has_what[(b.ip, b.port)].issuperset(b.data)
+        s = {(a.ip, a.port), (b.ip, b.port)}
+        for result in results:
+            assert p.who_has[result.key].issubset(s)
+
+        results2 = yield from p._map(lambda x: -x, results)
+
+        aval = set(a.data.values())
+        bval = set(b.data.values())
+
+        assert sum(-v in aval for v in aval) > 0.9 * len(aval)
+        assert sum(-v in bval for v in bval) > 0.9 * len(bval)
+
+        yield from p._close_connections()
+
+        a.close()
+        b.close()
+        c.close()
+
+    loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))

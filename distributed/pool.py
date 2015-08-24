@@ -65,7 +65,8 @@ class Pool(object):
         shares, extra = divide_tasks(self.who_has, needed)
 
         coroutines = list(concat([[
-            handle_worker(self.loop, tasks, shares, extra, seen, output, worker)
+            handle_worker(self.loop, self.who_has, self.has_what,
+                          tasks, shares, extra, seen, output, worker)
             for i in range(count)]
             for worker, count in self.available_cores.items()]))
 
@@ -356,7 +357,7 @@ def handle_task(task, loop, output, reader, writer):
 
 
 @asyncio.coroutine
-def handle_worker(loop, tasks, shares, extra, seen, output, ident, reader=None,
+def handle_worker(loop, who_has, has_what, tasks, shares, extra, seen, output, ident, reader=None,
         writer=None):
     if reader is None and writer is None:
         reader, writer = yield from connect(*ident, loop=loop)
@@ -369,6 +370,8 @@ def handle_worker(loop, tasks, shares, extra, seen, output, ident, reader=None,
         seen.add(i)
 
         yield from handle_task(tasks[i], loop, output, reader, writer)
+        who_has[tasks[i]['key']].add(ident)
+        has_what[ident].add(tasks[i]['key'])
 
     if ident in shares:
         del shares[ident]
@@ -377,10 +380,12 @@ def handle_worker(loop, tasks, shares, extra, seen, output, ident, reader=None,
         i = extra.pop()
         seen.add(i)
         yield from handle_task(tasks[i], loop, output, reader, writer)
+        who_has[tasks[i]['key']].add(ident)
+        has_what[ident].add(tasks[i]['key'])
 
     while shares:                               # Steal work from others
         worker = max(shares, key=lambda w: len(shares[w]))
-        i = shares[ident].pop()
+        i = shares[worker].pop()
 
         if not shares[worker]:
             del shares[worker]
@@ -391,5 +396,7 @@ def handle_worker(loop, tasks, shares, extra, seen, output, ident, reader=None,
         seen.add(i)
 
         yield from handle_task(tasks[i], loop, output, reader, writer)
+        who_has[tasks[i]['key']].add(ident)
+        has_what[ident].add(tasks[i]['key'])
 
     return reader, writer
