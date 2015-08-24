@@ -76,6 +76,8 @@ class Pool(object):
 
         return output
 
+    def map(self, func, seq, **kwargs):
+        return sync(self.loop, self._map(func, seq, **kwargs))
 
     def sync_center(self):
         """ Get who_has and has_what dictionaries from a center
@@ -118,6 +120,9 @@ class Pool(object):
 
     @asyncio.coroutine
     def _apply_async(self, func, args=(), kwargs={}, key=None):
+        if not isinstance(args, (tuple, list)):
+            raise TypeError('args must be a tuple as in:\n'
+                    '  pool.apply_async(func, args=(x,))')
         needed, args2, kwargs2 = needed_args_kwargs(args, kwargs)
 
         ip, port = choose_worker(needed, self.who_has, self.has_what,
@@ -140,6 +145,9 @@ class Pool(object):
         """
         cor = self._apply_async(func, args, kwargs, key)
         return sync(self.loop, cor)
+
+    def apply(self, func, args=(), kwargs={}, key=None):
+        return self.apply_async(func, args, kwargs, key).get()
 
 
 class PendingComputation(object):

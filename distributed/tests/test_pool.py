@@ -108,6 +108,9 @@ def test_cluster():
         x = pc.get()
         assert x.get() == 3
         assert x.get() == 3
+
+        y = pool.apply(add, [x, x])
+        assert y.get() == 6
         pool.close()
 
 
