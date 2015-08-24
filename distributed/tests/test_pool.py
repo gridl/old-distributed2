@@ -4,7 +4,7 @@ from queue import Queue
 
 from distributed.center import Center
 from distributed.worker import Worker
-from distributed.pool import Pool, spawn_loop
+from distributed.pool import Pool, spawn_loop, divide_tasks
 from contextlib import contextmanager
 
 loop = asyncio.get_event_loop()
@@ -46,6 +46,15 @@ def test_pool():
         yield from yy._get()
         assert list(p.available_cores.values()) == [1, 1]
 
+        seq = yield from p._map(lambda x: x * 100, [1, 2, 3])
+        result = yield from seq[0]._get(False)
+        assert result == 100
+        result = yield from seq[1]._get(False)
+        assert result == 200
+        result = yield from seq[2]._get(False)
+        assert result == 300
+
+        yield from p._close()
 
         a.close()
         b.close()
@@ -100,3 +109,18 @@ def test_cluster():
         assert x.get() == 3
         assert x.get() == 3
         pool.close()
+
+
+def test_workshare():
+    who_has = {'x': {'Alice'},
+               'y': {'Alice', 'Bob'},
+               'z': {'Bob'}}
+    needed = {1: {'x'},
+              2: {'y'},
+              3: {'z'},
+              4: {'x', 'z'},
+              5: set()}
+
+    shares, extra = divide_tasks(who_has, needed)
+    assert shares == {'Alice': [2, 1], 'Bob': [2, 3]}
+    assert extra == {4, 5}

@@ -122,7 +122,7 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     function = msg['function']
     key = msg['key']
     args = msg.get('args', ())
-    kwargs = msg.get('kwargs', {})
+    kwargs = dict(msg.get('kwargs', {}))
     needed = msg.get('needed', [])
 
     # Collect data from peers

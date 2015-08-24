@@ -1,13 +1,16 @@
 import asyncio
+from collections import namedtuple
 import random
 from queue import Queue
 import uuid
 
-from toolz import merge, partial, pipe, concat, frequencies
+from toolz import merge, partial, pipe, concat, frequencies, concat
 from toolz.curried import map, filter
 
 from .core import read, write, connect, send_recv, spawn_loop, sync
 
+
+Task = namedtuple('Task', ['key', 'function', 'args', 'kwargs', 'needed', 'index'])
 
 class Pool(object):
     """ Remote computation pool
@@ -29,6 +32,7 @@ class Pool(object):
         self.center_ip = center_ip
         self.center_port = center_port
         self.loop = loop or asyncio.new_event_loop()
+        self._reader_writers = set()
 
         if start:
             self.start()
@@ -45,6 +49,35 @@ class Pool(object):
         self.available_cores = yield from send_recv(reader, writer,
                             op='ncores', reply=True, close=True)
         writer.close()
+
+    @asyncio.coroutine
+    def _map(self, func, seq, **kwargs):
+        tasks = []
+        for i, item in enumerate(seq):
+            needed, args2, kwargs2 = needed_args_kwargs((item,), kwargs)
+            tasks.append(Task(key=str(uuid.uuid1()),
+                              function=func, args=tuple(args2),
+                              kwargs=tuple(kwargs2.items()),
+                              needed=tuple(needed), index=i))
+
+        output = [None for i in seq]
+        seen = set()
+        needed = {task: task.needed for task in tasks}
+
+        shares, extra = divide_tasks(self.who_has, needed)
+
+        coroutines = list(concat([[
+            handle_worker(self.loop, tasks, shares, extra, seen, output, worker)
+            for i in range(count)]
+            for worker, count in self.available_cores.items()]))
+
+        reader_writers = yield from asyncio.gather(*coroutines)
+        assert all(isinstance(o, RemoteData) for o in output)
+
+        self._reader_writers.update(reader_writers)
+
+        return output
+
 
     def sync_center(self):
         """ Get who_has and has_what dictionaries from a center
@@ -66,10 +99,19 @@ class Pool(object):
 
         self._thread, _ = spawn_loop(f(), loop=self.loop)
 
+    @asyncio.coroutine
+    def _close(self):
+        """ Close the thread that manages our event loop """
+        for reader, writer in self._reader_writers:
+            result = yield from send_recv(reader, writer, op='close',
+                                          reply=True, close=True)
+
     def close(self):
         """ Close the thread that manages our event loop """
-        self._kill_q.put('')
-        self._thread.join()
+        sync(self.loop, self._close())
+        if hasattr(self, '_thread'):
+            self._kill_q.put('')
+            self._thread.join()
 
     @asyncio.coroutine
     def _apply_async(self, func, args=(), kwargs={}, key=None):
@@ -174,18 +216,19 @@ class RemoteData(object):
         self.loop = loop
 
     @asyncio.coroutine
-    def _get(self):
+    def _get(self, close=True):
         result = yield from send_recv(self.reader, self.writer, op='get-data',
-                                      keys=[self.key], reply=True, close=True)
-        self.writer.close()
+                                      keys=[self.key], reply=True, close=close)
+        if close:
+            self.writer.close()
         self._result = result[self.key]
         return self._result
 
-    def get(self):
+    def get(self, close=True):
         try:
             return self._result
         except AttributeError:
-            return sync(self.loop, self._get())
+            return sync(self.loop, self._get(close))
 
 
 def choose_worker(needed, who_has, has_what, available_cores):
@@ -224,3 +267,119 @@ def needed_args_kwargs(args, kwargs):
             kwargs2[k] = arg
 
     return needed, args2, kwargs2
+
+
+def divide_tasks(who_has, needed):
+    """ Divvy up work between workers
+
+    Given the following dictionaries:
+
+    who_has: {data: [workers who have data]}
+    needed: {task: [data required by task]}
+
+    Produce a dictionary of tasks for each worker to do in sorted order of
+    priority.  These lists of tasks may overlap.
+
+    Example
+    -------
+
+    >>> who_has = {'x': {'Alice'},
+    ...            'y': {'Alice', 'Bob'},
+    ...            'z': {'Bob'}}
+    >>> needed = {1: {'x'},       # doable by Alice
+    ...           2: {'y'},       # doable by Alice and Bob
+    ...           3: {'z'},       # doable by Bob
+    ...           4: {'x', 'z'},  # doable by neither
+    ...           5: set()}       # doable by all
+    >>> shares, extra = divide_tasks(who_has, needed)
+    >>> shares  # doctest: +SKIP
+    {'Alice': [2, 1],
+       'Bob': [2, 3]}
+    >>> extra
+    {4, 5}
+
+    Ordering
+    --------
+
+    The tasks are ordered by the number of workers able to perform them.  In
+    this way we prioritize those tasks that few others can perform.
+    """
+    n = sum(map(len, who_has.values()))
+    scores = {k: len(v) / n for k, v in who_has.items()}
+
+    task_workers = {task: set.intersection(*[who_has[d] for d in data])
+                          if data else set()
+                    for task, data in needed.items()}
+    extra = {task for task in needed if not task_workers[task]}
+
+    worker_tasks = reverse_dict(task_workers)
+    worker_tasks = {k: sorted(v, key=lambda task: len(task_workers[task]),
+                                 reverse=True)
+                    for k, v in worker_tasks.items()}
+
+    return worker_tasks, extra
+
+
+def reverse_dict(d):
+    """
+
+    >>> a, b, c = 'abc'
+    >>> d = {'a': [1, 2], 'b': [2], 'c': []}
+    >>> reverse_dict(d)  # doctest: +SKIP
+    {1: {'a'}, 2: {'a', 'b'}}
+    """
+    result = dict((v, set()) for v in concat(d.values()))
+    for k, vals in d.items():
+        for val in vals:
+            result[val].add(k)
+    return result
+
+
+@asyncio.coroutine
+def handle_task(task, loop, output, reader, writer):
+    msg = merge({'op': 'compute', 'reply': True},
+                {f: getattr(task, f) for f in task._fields})
+    yield from write(writer, msg)
+    response = yield from read(reader)
+    assert response == b'OK'
+    output[task.index] = RemoteData(task.key, reader, writer, loop)
+
+
+@asyncio.coroutine
+def handle_worker(loop, tasks, shares, extra, seen, output, ident, reader=None,
+        writer=None):
+    if reader is None and writer is None:
+        reader, writer = yield from connect(*ident, loop=loop)
+
+    while ident in shares and shares[ident]:    # Process our own tasks
+        task = shares[ident].pop()
+        if task in seen:
+            continue
+
+        seen.add(task)
+
+        yield from handle_task(task, loop, output, reader, writer)
+
+    if ident in shares:
+        del shares[ident]
+
+    while extra:                                # Process shared tasks
+        task = extra.pop()
+        seen.add(task)
+        yield from handle_task(task, loop, output, reader, writer)
+
+    while shares:                               # Steal work from others
+        worker = max(shares, key=lambda w: len(shares[w]))
+        task = shares[ident].pop()
+
+        if not shares[worker]:
+            del shares[worker]
+
+        if task in seen:
+            continue
+
+        seen.add(task)
+
+        yield from handle_task(task, loop, output, reader, writer)
+
+    return reader, writer
