@@ -145,7 +145,12 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     # Fill args with data, compute in separate thread
     args2 = keys_to_data(args, data2)
     kwargs2 = keys_to_data(kwargs, data2)
-    result = yield from delay(loop, function, *args2, **kwargs)
+    try:
+        result = yield from delay(loop, function, *args2, **kwargs)
+        out_response = b'OK'
+    except Exception as e:
+        result = e
+        out_response = b'ERROR'
     data[key] = result
 
     # Tell center about or new data
@@ -154,7 +159,7 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     assert response == b'OK'  # TODO: do this asynchronously?
 
     if msg.get('reply'):
-        yield from write(writer, b'OK')
+        yield from write(writer, out_response)
 
 
 def keys_to_data(o, data):

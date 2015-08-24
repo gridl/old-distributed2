@@ -32,6 +32,13 @@ def test_worker():
         assert b.data['y'] == 13
         assert c.who_has['y'] == set([('127.0.0.1', b.port)])
 
+        def bad_func():
+            1 / 0
+        response = yield from send_recv(b_reader, b_writer, op='compute',
+        key='z', function=bad_func, args=(), needed=(), reply=True)
+        assert response == b'ERROR'
+        assert isinstance(b.data['z'], ZeroDivisionError)
+
         yield from write(a_writer, {'op': 'close', 'reply': True})
         yield from write(b_writer, {'op': 'close', 'reply': True})
         yield from read(a_reader)
