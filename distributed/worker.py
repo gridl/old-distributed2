@@ -51,6 +51,9 @@ class Worker(object):
         self.loop = loop or asyncio.new_event_loop()
         self.ncores = ncores or _ncores
         self.data = dict()
+        self._log = []
+
+        self.log('Create')
 
         if start:
             self.start(block)
@@ -70,11 +73,15 @@ class Worker(object):
                                     address=(self.ip, self.port),
                                     reply=True, close=True)
         assert resp == b'OK'
+        self.log('Register with Center', self.center_ip, self.center_port,
+                self.ip, self.port)
 
         self.server = yield from asyncio.start_server(
                 client_connected(handlers), self.bind, self.port,
                 loop=self.loop)
+        self.log('Start Server', self.bind, self.port)
         yield from self.server.wait_closed()
+        self.log('Server closed')
 
     def start(self, block):
         """ Start worker.
@@ -90,6 +97,9 @@ class Worker(object):
         self.loop.call_soon_threadsafe(self.server.close)
         if hasattr(self, '_thread'):
             self._thread.join()
+
+    def log(self, *args):
+        self._log.append(args)
 
 
 @asyncio.coroutine
