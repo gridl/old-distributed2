@@ -51,10 +51,10 @@ def test_pool():
         assert result == 100
         result = yield from seq[1]._get(False)
         assert result == 200
-        result = yield from seq[2]._get(False)
+        result = yield from seq[2]._get(True)
         assert result == 300
 
-        yield from p._close()
+        yield from p._close_connections()
 
         a.close()
         b.close()

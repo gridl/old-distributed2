@@ -98,15 +98,20 @@ class Pool(object):
         self._thread, _ = spawn_loop(f(), loop=self.loop)
 
     @asyncio.coroutine
-    def _close(self):
-        """ Close the thread that manages our event loop """
+    def _close_connections(self):
+        """ Close active connections """
         for reader, writer in self._reader_writers:
-            result = yield from send_recv(reader, writer, op='close',
-                                          reply=True, close=True)
+            if writer.transport._sock:
+                result = yield from send_recv(reader, writer, op='close',
+                                              reply=True, close=True)
+
+    def close_connections(self):
+        sync(self.loop, self._close_connections())
+
 
     def close(self):
         """ Close the thread that manages our event loop """
-        sync(self.loop, self._close())
+        self.close_connections()
         if hasattr(self, '_thread'):
             self._kill_q.put('')
             self._thread.join()
