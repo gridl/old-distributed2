@@ -4,7 +4,7 @@ from queue import Queue
 
 from distributed.center import Center
 from distributed.worker import Worker
-from distributed.pool import Pool, spawn_loop, divide_tasks
+from distributed.pool import Pool, spawn_loop, divide_tasks, RemoteData
 from contextlib import contextmanager
 
 loop = asyncio.get_event_loop()
@@ -23,8 +23,10 @@ def test_pool():
         yield from p._sync_center()
 
         computation = yield from p._apply_async(add, [1, 2])
+        assert computation.status == b'running'
         assert set(p.available_cores.values()) == set([0, 1])
         x = yield from computation._get()
+        assert computation.status == x.status == b'success'
         assert list(p.available_cores.values()) == [1, 1]
         result = yield from x._get()
         assert result == 3
@@ -53,6 +55,15 @@ def test_pool():
         assert result == 200
         result = yield from seq[2]._get(True)
         assert result == 300
+
+        # Handle errors gracefully
+        results = yield from p._map(lambda x: 3 / x, [0, 1, 2, 3])
+        assert all(isinstance(result, RemoteData) for result in results)
+        try:
+            yield from results[0]._get()
+            assert False
+        except ZeroDivisionError:
+            pass
 
         yield from p._close_connections()
 
@@ -103,7 +114,6 @@ def cluster():
 def test_cluster():
     with cluster() as (c, a, b):
         pool = Pool(c.ip, c.port)
-
         pc = pool.apply_async(add, [1, 2])
         x = pc.get()
         assert x.get() == 3
@@ -111,7 +121,24 @@ def test_cluster():
 
         y = pool.apply(add, [x, x])
         assert y.get() == 6
+
         pool.close()
+
+
+def test_error():
+    with cluster() as (c, a, b):
+        p = Pool(c.ip, c.port)
+
+        results = p.map(lambda x: 3 / x, [0, 1, 2, 3])
+        assert all(isinstance(result, RemoteData) for result in results)
+        assert results[1].get() == 3 / 1
+        try:
+            results[0].get()
+            assert False
+        except ZeroDivisionError:
+            pass
+
+        p.close()
 
 
 def test_workshare():

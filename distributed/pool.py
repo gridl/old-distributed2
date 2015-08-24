@@ -172,6 +172,7 @@ class PendingComputation(object):
         self.kwargs = kwargs
         self.needed = needed
         self.loop = loop
+        self.status = None
 
     @asyncio.coroutine
     def _start(self, ip, port, who_has=None, has_what=None,
@@ -186,17 +187,19 @@ class PendingComputation(object):
         self._available_cores = available_cores
         self.reader, self.writer = yield from connect(ip, port)
         self._available_cores[(ip, port)] -= 1
+        self.status = b'running'
         yield from write(self.writer, msg)
 
     @asyncio.coroutine
     def _get(self):
         result = yield from read(self.reader)
-        assert result == b'OK'
+        self.status = result
         self._who_has[self.key].add((self.ip, self.port))
         self._has_what[(self.ip, self.port)].add(self.key)
         self._available_cores[(self.ip, self.port)] += 1
         self._result = RemoteData(self.key, reader=self.reader,
-                                  writer=self.writer, loop=self.loop)
+                                  writer=self.writer, loop=self.loop,
+                                  status=self.status)
         return self._result
 
     def get(self):
@@ -221,26 +224,34 @@ class RemoteData(object):
     >>> rd.get()  # doctest: +SKIP
     10
     """
-    def __init__(self, key, reader=None, writer=None, loop=None):
+    def __init__(self, key, reader=None, writer=None, loop=None, status=None):
         self.key = key
         self.reader = reader
         self.writer = writer
         self.loop = loop
+        self.status = status
 
     @asyncio.coroutine
-    def _get(self, close=True):
+    def _get(self, close=True, raiseit=True):
         result = yield from send_recv(self.reader, self.writer, op='get-data',
                                       keys=[self.key], reply=True, close=close)
         if close:
             self.writer.close()
         self._result = result[self.key]
-        return self._result
+        if raiseit and self.status == b'error':
+            raise self._result
+        else:
+            return self._result
 
     def get(self, close=True):
         try:
             return self._result
         except AttributeError:
-            return sync(self.loop, self._get(close))
+            result = sync(self.loop, self._get(close, raiseit=False))
+            if self.status == b'error':
+                raise result
+            else:
+                return result
 
 
 def choose_worker(needed, who_has, has_what, available_cores):
@@ -352,8 +363,8 @@ def handle_task(task, loop, output, reader, writer):
     msg = merge({'op': 'compute', 'reply': True}, task)
     yield from write(writer, msg)
     response = yield from read(reader)
-    assert response == b'OK'
-    output[task['index']] = RemoteData(task['key'], reader, writer, loop)
+    output[task['index']] = RemoteData(task['key'], reader, writer, loop,
+            status=response)
 
 
 @asyncio.coroutine

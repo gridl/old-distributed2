@@ -22,13 +22,13 @@ def test_worker():
 
         response = yield from send_recv(a_reader, a_writer, op='compute',
         key='x', function=add, args=[1, 2], needed=[], reply=True)
-        assert response == b'OK'
+        assert response == b'success'
         assert a.data['x'] == 3
         assert c.who_has['x'] == set([('127.0.0.1', a.port)])
 
         response = yield from send_recv(b_reader, b_writer, op='compute',
         key='y', function=add, args=['x', 10], needed=['x'], reply=True)
-        assert response == b'OK'
+        assert response == b'success'
         assert b.data['y'] == 13
         assert c.who_has['y'] == set([('127.0.0.1', b.port)])
 
@@ -36,7 +36,7 @@ def test_worker():
             1 / 0
         response = yield from send_recv(b_reader, b_writer, op='compute',
         key='z', function=bad_func, args=(), needed=(), reply=True)
-        assert response == b'ERROR'
+        assert response == b'error'
         assert isinstance(b.data['z'], ZeroDivisionError)
 
         yield from write(a_writer, {'op': 'close', 'reply': True})

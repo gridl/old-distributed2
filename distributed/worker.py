@@ -147,10 +147,10 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     kwargs2 = keys_to_data(kwargs, data2)
     try:
         result = yield from delay(loop, function, *args2, **kwargs)
-        out_response = b'OK'
+        out_response = b'success'
     except Exception as e:
         result = e
-        out_response = b'ERROR'
+        out_response = b'error'
     data[key] = result
 
     # Tell center about or new data
