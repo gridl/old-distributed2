@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+
+from sys import argv
+
+try:
+    center_ip, center_port = argv[1].split(':')
+    center_port = int(center_port)
+except IndexError:
+    print("Usage: python dworker.py center-ip center-port")
+
+import socket
+ip = [(s.connect(('8.8.8.8', 80)), s.getsockname()[0], s.close()) 
+        for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]
+port = 8788
+
+from distributed import Worker
+print("Start worker at %s:%d\nCenter at %s:%d" % 
+        (ip, port, center_ip, center_port))
+
+w = Worker(ip, port, center_ip, center_port, start=True, block=False)
+
+try:
+    w._thread.join()
+except KeyboardInterrupt:
+    w.close()
+
+print("End worker at %s:%d" % (ip, port))

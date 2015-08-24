@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+
+from sys import argv
+if len(argv) == 2:
+    if ':' in argv[1]:
+        ip, port = argv[1].split(':')
+    else:
+        ip = None
+        port = argv[1]
+else:
+    ip = None
+    port = 8787
+
+port = int(port)
+
+import socket
+ip = ip or [(s.connect(('8.8.8.8', 80)), s.getsockname()[0], s.close())
+        for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]
+
+from distributed import Center
+print("Start center at %s:%d" % (ip, port))
+c = Center(ip, 8787, start=True, block=False)
+try:
+    c._thread.join()
+except KeyboardInterrupt:
+    c.close()
+
+print("End center")
