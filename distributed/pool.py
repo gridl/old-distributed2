@@ -10,8 +10,6 @@ from toolz.curried import map, filter
 from .core import read, write, connect, send_recv, spawn_loop, sync
 
 
-Task = namedtuple('Task', ['key', 'function', 'args', 'kwargs', 'needed', 'index'])
-
 class Pool(object):
     """ Remote computation pool
 
@@ -55,14 +53,14 @@ class Pool(object):
         tasks = []
         for i, item in enumerate(seq):
             needed, args2, kwargs2 = needed_args_kwargs((item,), kwargs)
-            tasks.append(Task(key=str(uuid.uuid1()),
-                              function=func, args=tuple(args2),
-                              kwargs=tuple(kwargs2.items()),
-                              needed=tuple(needed), index=i))
+            tasks.append(dict(key=str(uuid.uuid1()),
+                              function=func, args=args2,
+                              kwargs=kwargs2,
+                              needed=needed, index=i))
 
         output = [None for i in seq]
         seen = set()
-        needed = {task: task.needed for task in tasks}
+        needed = {i: task['needed'] for i, task in enumerate(tasks)}
 
         shares, extra = divide_tasks(self.who_has, needed)
 
@@ -337,12 +335,11 @@ def reverse_dict(d):
 
 @asyncio.coroutine
 def handle_task(task, loop, output, reader, writer):
-    msg = merge({'op': 'compute', 'reply': True},
-                {f: getattr(task, f) for f in task._fields})
+    msg = merge({'op': 'compute', 'reply': True}, task)
     yield from write(writer, msg)
     response = yield from read(reader)
     assert response == b'OK'
-    output[task.index] = RemoteData(task.key, reader, writer, loop)
+    output[task['index']] = RemoteData(task['key'], reader, writer, loop)
 
 
 @asyncio.coroutine
@@ -352,34 +349,34 @@ def handle_worker(loop, tasks, shares, extra, seen, output, ident, reader=None,
         reader, writer = yield from connect(*ident, loop=loop)
 
     while ident in shares and shares[ident]:    # Process our own tasks
-        task = shares[ident].pop()
-        if task in seen:
+        i = shares[ident].pop()
+        if i in seen:
             continue
 
-        seen.add(task)
+        seen.add(i)
 
-        yield from handle_task(task, loop, output, reader, writer)
+        yield from handle_task(tasks[i], loop, output, reader, writer)
 
     if ident in shares:
         del shares[ident]
 
     while extra:                                # Process shared tasks
-        task = extra.pop()
-        seen.add(task)
-        yield from handle_task(task, loop, output, reader, writer)
+        i = extra.pop()
+        seen.add(i)
+        yield from handle_task(tasks[i], loop, output, reader, writer)
 
     while shares:                               # Steal work from others
         worker = max(shares, key=lambda w: len(shares[w]))
-        task = shares[ident].pop()
+        i = shares[ident].pop()
 
         if not shares[worker]:
             del shares[worker]
 
-        if task in seen:
+        if i in seen:
             continue
 
-        seen.add(task)
+        seen.add(i)
 
-        yield from handle_task(task, loop, output, reader, writer)
+        yield from handle_task(tasks[i], loop, output, reader, writer)
 
     return reader, writer
