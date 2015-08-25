@@ -6,6 +6,7 @@ from time import sleep
 
 from .core import read, write, client_connected, spawn_loop
 
+log = print
 
 class Center(object):
     """ Central metadata storage
@@ -55,6 +56,7 @@ class Center(object):
         self.server = yield from asyncio.start_server(
                 client_connected(handlers), self.bind, self.port,
                 loop=self.loop)
+        log("Center server up")
         yield from self.server.wait_closed()
 
     def start(self, block):
@@ -85,6 +87,7 @@ def manage_metadata(who_has, has_what, ncores, reader, writer, msg):
     if msg['op'] == 'register':
         has_what[msg['address']] = set(msg.get('keys', ()))
         ncores[msg['address']] = msg['ncores']
+        print("Register %s" % str(msg['address']))
         if msg.get('reply'):
             yield from write(writer, b'OK')
 

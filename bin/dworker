@@ -17,11 +17,12 @@ from distributed import Worker
 print("Start worker at %s:%d\nCenter at %s:%d" % 
         (ip, port, center_ip, center_port))
 
-w = Worker(ip, port, center_ip, center_port, start=True, block=False)
+w = Worker(ip, port, center_ip, center_port, start=True, block=True)
 
+"""
 try:
     w._thread.join()
 except KeyboardInterrupt:
     w.close()
-
+    """
 print("End worker at %s:%d" % (ip, port))

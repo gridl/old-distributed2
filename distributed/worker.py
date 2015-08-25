@@ -9,6 +9,8 @@ from .core import (read, write, connect, delay, manage_data, client_connected,
 
 _ncores = ThreadPool()._processes
 
+log = print
+
 class Worker(object):
     """ Worker node in a distributed network
 
@@ -71,8 +73,9 @@ class Worker(object):
         resp = yield from send_recv(self.center_ip, self.center_port,
                                     op='register', ncores=self.ncores,
                                     address=(self.ip, self.port),
-                                    reply=True, close=True)
+                                    reply=True, close=True, loop=self.loop)
         assert resp == b'OK'
+        log('Registered with center')
         self.log('Register with Center', self.center_ip, self.center_port,
                 self.ip, self.port)
 
@@ -106,7 +109,7 @@ class Worker(object):
 def collect(loop, reader, writer, needed):
     """ Collect data from peers """
     who_has = yield from send_recv(reader, writer, op='who-has', keys=needed,
-            reply=True)
+            reply=True, loop=loop)
     assert set(who_has) == set(needed)
 
     # TODO: This should all be done in parallel and in fewer messages
