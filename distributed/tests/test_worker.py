@@ -6,7 +6,7 @@ from distributed.core import read, write, connect, send_recv
 from distributed.center import Center
 from distributed.worker import Worker
 
-loop = asyncio.get_event_loop()
+loop = asyncio.new_event_loop()
 
 
 def test_worker():
@@ -21,13 +21,13 @@ def test_worker():
         b_reader, b_writer = yield from connect('127.0.0.1', b.port, loop=loop)
 
         response = yield from send_recv(a_reader, a_writer, op='compute',
-        key='x', function=add, args=[1, 2], needed=[], reply=True)
+            key='x', function=add, args=[1, 2], needed=[], reply=True)
         assert response == b'success'
         assert a.data['x'] == 3
         assert c.who_has['x'] == set([('127.0.0.1', a.port)])
 
         response = yield from send_recv(b_reader, b_writer, op='compute',
-        key='y', function=add, args=['x', 10], needed=['x'], reply=True)
+            key='y', function=add, args=['x', 10], needed=['x'], reply=True)
         assert response == b'success'
         assert b.data['y'] == 13
         assert c.who_has['y'] == set([('127.0.0.1', b.port)])
@@ -35,7 +35,7 @@ def test_worker():
         def bad_func():
             1 / 0
         response = yield from send_recv(b_reader, b_writer, op='compute',
-        key='z', function=bad_func, args=(), needed=(), reply=True)
+            key='z', function=bad_func, args=(), needed=(), reply=True)
         assert response == b'error'
         assert isinstance(b.data['z'], ZeroDivisionError)
 
@@ -50,7 +50,9 @@ def test_worker():
         b.close()
         c.close()
 
-    loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
+    loop.run_until_complete(
+            asyncio.gather(c.go(), a.go(), b.go(), f(), loop=loop))
+
 
 
 def test_thread():
@@ -80,5 +82,4 @@ def test_log():
         a.close()
         c.close()
 
-    loop.run_until_complete(asyncio.gather(c.go(), a.go(), f()))
-
+    loop.run_until_complete(asyncio.gather(c.go(), a.go(), f(), loop=loop))

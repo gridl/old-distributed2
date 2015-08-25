@@ -60,7 +60,7 @@ def connect(host, port, delay=0.1, timeout=None, loop=None):
             if timeout is not None and time() - start > timeout:
                 raise
             else:
-                yield from asyncio.sleep(delay)
+                yield from asyncio.sleep(delay, loop=loop)
     return reader, writer
 
 
@@ -122,7 +122,7 @@ def delay(loop, func, *args, **kwargs):
 
 
 @asyncio.coroutine
-def send_recv(reader, writer, reply=True, **kwargs):
+def send_recv(reader, writer, reply=True, loop=None, **kwargs):
     """ Send and recv with a reader/writer pair
 
     Keyword arguments turn into the message
@@ -130,8 +130,7 @@ def send_recv(reader, writer, reply=True, **kwargs):
     response = yield from send_recv(reader, writer, op='ping', reply=True)
     """
     if isinstance(reader, (bytes, str)) and isinstance(writer, int):
-        reader, writer = yield from connect(reader, writer,
-                                            loop=kwargs.pop('loop', None))
+        reader, writer = yield from connect(reader, writer, loop=loop)
     msg = kwargs
     msg['reply'] = reply
     yield from write(writer, msg)

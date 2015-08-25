@@ -95,7 +95,7 @@ class Pool(object):
         @asyncio.coroutine
         def f():
             while self._kill_q.empty():
-                yield from asyncio.sleep(0.01)
+                yield from asyncio.sleep(0.01, loop=self.loop)
             self._kill_q.get()
 
         self._thread, _ = spawn_loop(f(), loop=self.loop)

@@ -112,7 +112,7 @@ def collect(loop, reader, writer, needed):
             reply=True, loop=loop)
     assert set(who_has) == set(needed)
 
-    # TODO: This should all be done in parallel and in fewer messages
+    # TODO: This should all be done with a gather and in fewer messages
     results = []
     for key, addresses in who_has.items():
         host, port = random.choice(list(addresses))
@@ -128,7 +128,8 @@ def collect(loop, reader, writer, needed):
 @asyncio.coroutine
 def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     """ Execute function """
-    m_reader, m_writer = yield from connect(metadata_ip, metadata_port, loop)
+    m_reader, m_writer = yield from connect(metadata_ip, metadata_port,
+                                            loop=loop)
     assert msg['op'] == 'compute'
 
     # Unpack message

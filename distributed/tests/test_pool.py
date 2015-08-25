@@ -92,7 +92,7 @@ def cluster():
     @asyncio.coroutine
     def stop():
         while kill_q.empty():
-            yield from asyncio.sleep(0.01)
+            yield from asyncio.sleep(0.01, loop=loop)
         kill_q.get()
 
     cor = asyncio.gather(c.go(), a.go(), b.go(), loop=loop)
