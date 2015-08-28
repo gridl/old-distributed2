@@ -1,6 +1,7 @@
 import asyncio
 from operator import add
 from queue import Queue
+from time import time
 
 from distributed.center import Center
 from distributed.worker import Worker
@@ -81,11 +82,11 @@ def test_pool_thread():
 
 
 @contextmanager
-def cluster():
+def cluster(**kwargs):
     loop = asyncio.new_event_loop()
     c = Center('127.0.0.1', 8100, loop=loop)
-    a = Worker('127.0.0.1', 8101, c.ip, c.port, loop=loop)
-    b = Worker('127.0.0.1', 8102, c.ip, c.port, loop=loop)
+    a = Worker('127.0.0.1', 8101, c.ip, c.port, loop=loop, **kwargs)
+    b = Worker('127.0.0.1', 8102, c.ip, c.port, loop=loop, **kwargs)
 
     kill_q = Queue()
 
@@ -108,7 +109,7 @@ def cluster():
         b.close()
         c.close()
         kill_q.put(b'')
-        thread.join()
+        # thread.join()
 
 
 def test_cluster():
@@ -190,3 +191,31 @@ def test_map_locality():
         c.close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
+
+
+flag = [0]
+maximum = [0]
+
+
+def test_multiworkers():
+    from threading import Lock
+    lock = Lock()
+    with cluster(ncores=10) as (c, a, b):
+        pool = Pool(c.ip, c.port)
+        def f(x):
+            flag[0] += 1
+            from time import sleep
+            if maximum[0] < flag[0]:
+                maximum[0] = flag[0]
+            print(flag[0])
+            sleep(0.1)
+            flag[0] -= 1
+            return x
+
+        start = time()
+        result = pool.map(f, list(range(40)))
+        end = time()
+
+        assert maximum[0] > 5
+
+        pool.close()
