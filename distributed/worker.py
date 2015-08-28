@@ -83,8 +83,10 @@ class Worker(object):
                 client_connected(handlers), self.bind, self.port,
                 loop=self.loop)
         self.log('Start Server', self.bind, self.port)
+        log('Start worker')
         yield from self.server.wait_closed()
         self.log('Server closed')
+        log('Stop worker')
 
     def start(self, block):
         """ Start worker.
@@ -125,6 +127,8 @@ def collect(loop, reader, writer, needed):
     return merge(results)
 
 
+job_counter = [0]
+
 @asyncio.coroutine
 def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     """ Execute function """
@@ -139,8 +143,11 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     kwargs = dict(msg.get('kwargs', {}))
     needed = msg.get('needed', [])
 
+    needed = [n for n in needed if n not in data]
+
     # Collect data from peers
-    if msg['needed']:
+    if needed:
+        log("Collect data from peers: %s" % str(needed))
         other = yield from collect(loop, m_reader, m_writer, needed)
         data2 = merge(data, other)
     else:
@@ -150,7 +157,11 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     args2 = keys_to_data(args, data2)
     kwargs2 = keys_to_data(kwargs, data2)
     try:
+        job_counter[0] += 1
+        i = job_counter[0]
+        log("Start job %d: %s" % (i, function.__name__))
         result = yield from delay(loop, function, *args2, **kwargs)
+        log("Finish job %d: %s" % (i, function.__name__))
         out_response = b'success'
     except Exception as e:
         result = e
