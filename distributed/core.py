@@ -112,7 +112,7 @@ def manage_data(data, reader, writer, msg):
 
 
 from concurrent.futures import ThreadPoolExecutor
-executor = ThreadPoolExecutor(20)
+executor = ThreadPoolExecutor(50)
 
 
 def delay(loop, func, *args, **kwargs):
