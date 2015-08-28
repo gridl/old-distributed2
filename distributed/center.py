@@ -84,6 +84,7 @@ def manage_metadata(who_has, has_what, ncores, reader, writer, msg):
     *  who-has: ask which workers have certain keys
     *  has-what: ask which keys a set of workers has
     """
+    log("msg received: " + str(msg))
     if msg['op'] == 'register':
         has_what[msg['address']] = set(msg.get('keys', ()))
         ncores[msg['address']] = msg['ncores']
