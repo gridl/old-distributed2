@@ -112,13 +112,10 @@ def collect(loop, reader, writer, needed):
     who_has = yield from rpc(reader, writer).who_has(keys=needed, loop=loop)
     assert set(who_has) == set(needed)
 
-    # TODO: This should all be done with a gather and in fewer messages
-    results = []
-    for key, addresses in who_has.items():
-        host, port = random.choice(list(addresses))
-        result = yield from rpc(host, port).get_data(keys=[key], loop=loop,
-                                                     close=True)
-        results.append(result)
+    coroutines = [rpc(*random.choice(list(addresses))).get_data(keys=[key],
+            loop=loop, close=True) for key, addresses in who_has.items()]
+
+    results = yield from asyncio.gather(*coroutines, loop=loop)
 
     # TODO: Update metadata to say that we have this data
     return merge(results)
