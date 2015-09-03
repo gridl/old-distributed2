@@ -75,6 +75,12 @@ def test_pool():
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
 
 
+def test_pool_inputs():
+    p = Pool('127.0.0.1:8000', start=False)
+    assert p.center_ip == '127.0.0.1'
+    assert p.center_port == 8000
+
+
 def test_pool_thread():
     p = Pool('127.0.0.1', 8000, start=False)
     p.start()

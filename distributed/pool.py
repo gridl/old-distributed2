@@ -26,7 +26,13 @@ class Pool(object):
     >>> rd.get()  # doctest: +SKIP
     10
     """
-    def __init__(self, center_ip, center_port, loop=None, start=True):
+    def __init__(self, center_ip, center_port=None, loop=None, start=True):
+        if center_port is None:
+            if ':' in center_ip:
+                center_ip, center_port = center_ip.split(':')
+            else:
+                center_port = 8787
+        center_port = int(center_port)
         self.center_ip = center_ip
         self.center_port = center_port
         self.loop = loop or asyncio.new_event_loop()
