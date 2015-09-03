@@ -4,7 +4,7 @@ from toolz import merge, partial
 from multiprocessing.pool import ThreadPool
 
 from .core import (read, write, connect, delay, manage_data, client_connected,
-        send_recv, spawn_loop)
+        spawn_loop, rpc)
 
 
 _ncores = ThreadPool()._processes
@@ -66,14 +66,13 @@ class Worker(object):
         work_cor = partial(work, self.loop, self.data, self.ip, self.port,
                                  self.center_ip, self.center_port)
         handlers = {'compute': work_cor,
-                    'get-data': data_cor,
-                    'update-data': data_cor,
-                    'del-data': data_cor}
+                    'get_data': data_cor,
+                    'update_data': data_cor,
+                    'del_data': data_cor}
 
-        resp = yield from send_recv(self.center_ip, self.center_port,
-                                    op='register', ncores=self.ncores,
-                                    address=(self.ip, self.port),
-                                    reply=True, close=True, loop=self.loop)
+        resp = yield from rpc(self.center_ip, self.center_port).register(
+                              ncores=self.ncores, address=(self.ip, self.port),
+                              close=True, loop=self.loop)
         assert resp == b'OK'
         log('Registered with center')
         self.log('Register with Center', self.center_ip, self.center_port,
@@ -110,20 +109,18 @@ class Worker(object):
 @asyncio.coroutine
 def collect(loop, reader, writer, needed):
     """ Collect data from peers """
-    who_has = yield from send_recv(reader, writer, op='who-has', keys=needed,
-            reply=True, loop=loop)
+    who_has = yield from rpc(reader, writer).who_has(keys=needed, loop=loop)
     assert set(who_has) == set(needed)
 
     # TODO: This should all be done with a gather and in fewer messages
     results = []
     for key, addresses in who_has.items():
         host, port = random.choice(list(addresses))
-        result = yield from send_recv(host, port, op='get-data', keys=[key],
-                loop=loop, reply=True, close=True)
+        result = yield from rpc(host, port).get_data(keys=[key], loop=loop,
+                                                     close=True)
         results.append(result)
 
     # TODO: Update metadata to say that we have this data
-
     return merge(results)
 
 
@@ -169,8 +166,8 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
     data[key] = result
 
     # Tell center about or new data
-    response = yield from send_recv(m_reader, m_writer, op='add-keys',
-            address=(ip, port), keys=[key], reply=True, close=True)
+    response = yield from rpc(m_reader, m_writer).add_keys(address=(ip, port),
+                                           keys=[key], close=True)
     assert response == b'OK'  # TODO: do this asynchronously?
 
     if msg.get('reply'):

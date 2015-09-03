@@ -45,10 +45,10 @@ class Center(object):
     def go(self):
         cor = partial(manage_metadata, self.who_has, self.has_what,
                                        self.ncores)
-        handlers = {'add-keys': cor,
-                    'del-keys': cor,
-                    'who-has': cor,
-                    'has-what': cor,
+        handlers = {'add_keys': cor,
+                    'del_keys': cor,
+                    'who_has': cor,
+                    'has_what': cor,
                     'register': cor,
                     'ncores': cor,
                     'unregister': cor}
@@ -79,10 +79,10 @@ def manage_metadata(who_has, has_what, ncores, reader, writer, msg):
 
     *  register: register a new worker
     *  unregister: remove a known worker
-    *  add-keys: state that a worker has gained certain keys
-    *  del-keys: state that a worker has lost certain keys
-    *  who-has: ask which workers have certain keys
-    *  has-what: ask which keys a set of workers has
+    *  add_keys: state that a worker has gained certain keys
+    *  del_keys: state that a worker has lost certain keys
+    *  who_has: ask which workers have certain keys
+    *  has_what: ask which keys a set of workers has
     """
     log("msg received: " + str(msg))
     if msg['op'] == 'register':
@@ -100,14 +100,14 @@ def manage_metadata(who_has, has_what, ncores, reader, writer, msg):
         if msg.get('reply'):
             yield from write(writer, b'OK')
 
-    if msg['op'] == 'add-keys':
+    if msg['op'] == 'add_keys':
         has_what[msg['address']].update(msg['keys'])
         for key in msg['keys']:
             who_has[key].add(msg['address'])
         if msg.get('reply'):
             yield from write(writer, b'OK')
 
-    if msg['op'] == 'del-keys':
+    if msg['op'] == 'del_keys':
         for key in msg['keys']:
             if key in has_what[msg['address']]:
                 has_what[msg['address']].remove(key)
@@ -118,14 +118,14 @@ def manage_metadata(who_has, has_what, ncores, reader, writer, msg):
         if msg.get('reply'):
             yield from write(writer, b'OK')
 
-    if msg['op'] == 'who-has':
+    if msg['op'] == 'who_has':
         if 'keys' in msg:
             result = {k: who_has[k] for k in msg['keys']}
         else:
             result = who_has
         yield from write(writer, result)
 
-    if msg['op'] == 'has-what':
+    if msg['op'] == 'has_what':
         if 'keys' in msg:
             result = {k: has_what[k] for k in msg['keys']}
         else:

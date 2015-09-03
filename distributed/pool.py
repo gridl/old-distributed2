@@ -7,7 +7,7 @@ import uuid
 from toolz import merge, partial, pipe, concat, frequencies, concat
 from toolz.curried import map, filter
 
-from .core import read, write, connect, send_recv, spawn_loop, sync
+from .core import read, write, connect, spawn_loop, sync, rpc
 
 
 class Pool(object):
@@ -40,12 +40,10 @@ class Pool(object):
     def _sync_center(self):
         reader, writer = yield from connect(self.center_ip, self.center_port,
                                             loop=self.loop)
-        self.who_has = yield from send_recv(reader, writer, op='who-has',
-                                            reply=True)
-        self.has_what = yield from send_recv(reader, writer, op='has-what',
-                                             reply=True)
-        self.available_cores = yield from send_recv(reader, writer,
-                            op='ncores', reply=True, close=True)
+        center = rpc(reader, writer)
+        self.who_has = yield from center.who_has()
+        self.has_what = yield from center.has_what()
+        self.available_cores = yield from center.ncores(close=True)
         writer.close()
 
     @asyncio.coroutine
@@ -105,8 +103,8 @@ class Pool(object):
         """ Close active connections """
         for reader, writer in self._reader_writers:
             if writer.transport._sock and not writer.transport._closing:
-                result = yield from send_recv(reader, writer, op='close',
-                                              reply=True, close=True)
+                r = rpc(reader, writer)
+                result = yield from r.close(close=True)
 
     def close_connections(self):
         sync(self.loop, self._close_connections())
@@ -233,8 +231,8 @@ class RemoteData(object):
 
     @asyncio.coroutine
     def _get(self, close=True, raiseit=True):
-        result = yield from send_recv(self.reader, self.writer, op='get-data',
-                                      keys=[self.key], reply=True, close=close)
+        result = yield from rpc(self.reader, self.writer).get_data(
+                                      keys=[self.key], close=close)
         if close:
             self.writer.close()
         self._result = result[self.key]
@@ -368,8 +366,8 @@ def handle_task(task, loop, output, reader, writer):
 
 
 @asyncio.coroutine
-def handle_worker(loop, who_has, has_what, tasks, shares, extra, seen, output, ident, reader=None,
-        writer=None):
+def handle_worker(loop, who_has, has_what, tasks, shares, extra, seen, output,
+                  ident, reader=None, writer=None):
     if reader is None and writer is None:
         reader, writer = yield from connect(*ident, loop=loop)
 

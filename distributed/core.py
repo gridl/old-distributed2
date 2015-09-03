@@ -69,7 +69,7 @@ def connect(host, port, delay=0.1, timeout=None, loop=None):
 def client_connected(handlers, reader, writer):
     """ Dispatch new connections to coroutine-handlers
 
-    handlers is a dictionary mapping operation names (e.g. {'op': 'get-data'})
+    handlers is a dictionary mapping operation names (e.g. {'op': 'get_data'})
     to coroutines that take ``reader, writer, msg`` triples.
 
     This is given to ``serve`` which uses ``asyncio.start_server``
@@ -99,12 +99,12 @@ def pingpong(reader, writer, msg):
 @asyncio.coroutine
 def manage_data(data, reader, writer, msg):
     """ Coroutine to serve data from dictionary """
-    if msg['op'] == 'get-data':
+    if msg['op'] == 'get_data':
         out = {k: data.get(k) for k in msg['keys']}
-    if msg['op'] == 'update-data':
+    if msg['op'] == 'update_data':
         data.update(msg['data'])
         out = b'OK'
-    if msg['op'] == 'del-data':
+    if msg['op'] == 'del_data':
         for key in msg['keys']:
             del data[key]
         out = b'OK'
@@ -141,6 +141,31 @@ def send_recv(reader, writer, reply=True, loop=None, **kwargs):
     if kwargs.get('close'):
         writer.close()
     return response
+
+
+class rpc(object):
+    """ Use send_recv to cause rpc computations on client_connected calls
+
+    By convention the `client_connected` coroutine looks for operations by name
+    in the `op` key of a message.
+
+    >>> msg = {'op': 'func', 'key1': 100, 'key2': 1000}
+    >>> result = yield from send_recv(reader, writer, **msg)  # doctest: +SKIP
+
+    This class uses this convention to provide a Python interface for calling
+    remote functions
+
+    >>> remote = rpc(reader, writer)  # doctest: +SKIP
+    >>> result = yield from remote.func(key1=100, key2=1000)  # doctest: +SKIP
+    """
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+
+    def __getattr__(self, key):
+        def _(**kwargs):
+            return send_recv(self.reader, self.writer, op=key, **kwargs)
+        return _
 
 
 def sync(loop, cor):

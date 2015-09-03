@@ -2,7 +2,7 @@ import asyncio
 from operator import add
 from time import sleep
 
-from distributed.core import read, write, connect, send_recv
+from distributed.core import read, write, connect, rpc
 from distributed.center import Center
 from distributed.worker import Worker
 
@@ -20,13 +20,13 @@ def test_worker():
         a_reader, a_writer = yield from connect('127.0.0.1', a.port, loop=loop)
         b_reader, b_writer = yield from connect('127.0.0.1', b.port, loop=loop)
 
-        response = yield from send_recv(a_reader, a_writer, op='compute',
+        response = yield from rpc(a_reader, a_writer).compute(
             key='x', function=add, args=[1, 2], needed=[], reply=True)
         assert response == b'success'
         assert a.data['x'] == 3
         assert c.who_has['x'] == set([('127.0.0.1', a.port)])
 
-        response = yield from send_recv(b_reader, b_writer, op='compute',
+        response = yield from rpc(b_reader, b_writer).compute(
             key='y', function=add, args=['x', 10], needed=['x'], reply=True)
         assert response == b'success'
         assert b.data['y'] == 13
@@ -34,7 +34,7 @@ def test_worker():
 
         def bad_func():
             1 / 0
-        response = yield from send_recv(b_reader, b_writer, op='compute',
+        response = yield from rpc(b_reader, b_writer).compute(
             key='z', function=bad_func, args=(), needed=(), reply=True)
         assert response == b'error'
         assert isinstance(b.data['z'], ZeroDivisionError)
