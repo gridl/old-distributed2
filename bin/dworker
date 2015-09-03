@@ -11,13 +11,23 @@ except IndexError:
 import socket
 ip = [(s.connect(('8.8.8.8', 80)), s.getsockname()[0], s.close()) 
         for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]
-port = 8788
 
 from distributed import Worker
-print("Start worker at %s:%d\nCenter at %s:%d" % 
-        (ip, port, center_ip, center_port))
 
-w = Worker(ip, port, center_ip, center_port, start=True, block=True)
+port = 8788
+while True:
+    try:
+        print("Start worker at %s:%d\nCenter at %s:%d" % 
+                (ip, port, center_ip, center_port))
+
+        w = Worker(ip, port, center_ip, center_port, start=True, block=True)
+    except OSError as e:
+        print("Error: %s" % str(e))
+        port += 1
+        continue
+    else:
+        break
+
 
 """
 try:

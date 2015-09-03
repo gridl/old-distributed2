@@ -84,11 +84,15 @@ def client_connected(handlers, reader, writer):
                 if reply:
                     yield from write(writer, b'OK')
                 break
-            handler = handlers[op]
-            if iscoroutine(handler):
-                result = yield from handler(reader, writer, **msg)
+            try:
+                handler = handlers[op]
+            except KeyError:
+                result = b'No handler found: ' + op
             else:
-                result = handler(reader, writer, **msg)
+                if iscoroutine(handler):
+                    result = yield from handler(reader, writer, **msg)
+                else:
+                    result = handler(reader, writer, **msg)
             if reply:
                 yield from write(writer, result)
             if close:
@@ -162,13 +166,17 @@ class rpc(object):
     >>> remote = rpc(reader, writer)  # doctest: +SKIP
     >>> result = yield from remote.func(key1=100, key2=1000)  # doctest: +SKIP
     """
-    def __init__(self, reader, writer):
+    def __init__(self, reader, writer, loop=None):
         self.reader = reader
         self.writer = writer
+        self.loop = loop
 
     def __getattr__(self, key):
         def _(**kwargs):
-            return send_recv(self.reader, self.writer, op=key, **kwargs)
+            if 'loop' not in kwargs:
+                kwargs['loop'] = self.loop
+            return send_recv(self.reader, self.writer, op=key,
+                            **kwargs)
         return _
 
 

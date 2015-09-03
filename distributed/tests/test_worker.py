@@ -45,9 +45,12 @@ def test_worker():
         yield from read(b_reader)
 
         a_writer.close()
+        yield from a._close()
+
+        assert list(c.ncores.keys()) == [(b.ip, b.port)]
+
         b_writer.close()
-        a.close()
-        b.close()
+        yield from b._close()
         c.close()
 
     loop.run_until_complete(
@@ -62,8 +65,8 @@ def test_thread():
     assert w.loop.is_running()
     while not hasattr(w, 'server'):
         sleep(0.01)
-    c.close()
     w.close()
+    c.close()
     assert not w.loop.is_running()
 
 
@@ -79,7 +82,7 @@ def test_log():
         yield from read(reader)
 
         writer.close()
-        a.close()
+        yield from a._close()
         c.close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), f(), loop=loop))

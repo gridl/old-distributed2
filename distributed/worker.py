@@ -4,7 +4,7 @@ from toolz import merge, partial
 from multiprocessing.pool import ThreadPool
 
 from .core import (read, write, connect, delay, client_connected, get_data,
-        update_data, delete_data, spawn_loop, rpc)
+        update_data, delete_data, spawn_loop, rpc, sync)
 from . import core
 
 
@@ -97,8 +97,14 @@ class Worker(object):
         else:
             self._thread, _ = spawn_loop(self.go(), loop=self.loop)
 
+    @asyncio.coroutine
+    def _close(self):
+        yield from rpc(self.center_ip, self.center_port, loop=self.loop).unregister(close=True,
+                address=(self.ip, self.port))
+        self.server.close()
+
     def close(self):
-        self.loop.call_soon_threadsafe(self.server.close)
+        result = sync(self.loop, self._close())
         if hasattr(self, '_thread'):
             self._thread.join()
 
