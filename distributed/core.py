@@ -77,38 +77,42 @@ def client_connected(handlers, reader, writer):
     try:
         while True:
             msg = yield from read(reader)
-            if msg['op'] == 'close':
-                if msg.get('reply'):
+            op = msg.pop('op')
+            close = msg.pop('close', False)
+            reply = msg.pop('reply', True)
+            if op == 'close':
+                if reply:
                     yield from write(writer, b'OK')
                 break
-            handler = handlers[msg['op']]
-            yield from handler(reader, writer, msg)
-            if msg.get('close'):
+            handler = handlers[op]
+            if iscoroutine(handler):
+                result = yield from handler(reader, writer, **msg)
+            else:
+                result = handler(reader, writer, **msg)
+            if reply:
+                yield from write(writer, result)
+            if close:
                 break
     finally:
         writer.close()
 
 
-@asyncio.coroutine
-def pingpong(reader, writer, msg):
+def pingpong(reader, writer):
     """ Coroutine to send ping reply """
-    assert msg['op'] == 'ping'
-    yield from write(writer, b'pong')
+    return b'pong'
 
 
-@asyncio.coroutine
-def manage_data(data, reader, writer, msg):
-    """ Coroutine to serve data from dictionary """
-    if msg['op'] == 'get_data':
-        out = {k: data.get(k) for k in msg['keys']}
-    if msg['op'] == 'update_data':
-        data.update(msg['data'])
-        out = b'OK'
-    if msg['op'] == 'del_data':
-        for key in msg['keys']:
-            del data[key]
-        out = b'OK'
-    yield from write(writer, out)
+def get_data(data, reader, writer, keys=()):
+    return {k: data.get(k) for k in keys}
+
+def update_data(old_data, reader, writer, data={}):
+    old_data.update(data)
+    return b'OK'
+
+def delete_data(data, reader, writer, keys=()):
+    for key in keys:
+        del data[key]
+    return b'OK'
 
 
 from concurrent.futures import ThreadPoolExecutor
@@ -201,3 +205,11 @@ def spawn_loop(cor, loop=None):
     t = Thread(target=f, args=(loop, cor))
     t.start()
     return t, loop
+
+
+def iscoroutine(func):
+    if hasattr(func, 'func'):
+        return iscoroutine(func.func)
+    if hasattr(func, '_is_coroutine'):
+        return func._is_coroutine
+    return False

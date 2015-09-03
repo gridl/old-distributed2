@@ -43,15 +43,9 @@ class Center(object):
 
     @asyncio.coroutine
     def go(self):
-        cor = partial(manage_metadata, self.who_has, self.has_what,
-                                       self.ncores)
-        handlers = {'add_keys': cor,
-                    'del_keys': cor,
-                    'who_has': cor,
-                    'has_what': cor,
-                    'register': cor,
-                    'ncores': cor,
-                    'unregister': cor}
+        handlers = {func.__name__: partial(func, self.who_has, self.has_what, self.ncores)
+                    for func in [add_keys, del_keys, who_has, has_what,
+                                 register, ncores, unregister]}
 
         self.server = yield from asyncio.start_server(
                 client_connected(handlers), self.bind, self.port,
@@ -71,70 +65,52 @@ class Center(object):
             self._thread.join()
 
 
-@asyncio.coroutine
-def manage_metadata(who_has, has_what, ncores, reader, writer, msg):
-    """ Main coroutine to manage metadata
+def register(who_has, has_what, ncores_dict, reader, writer, address=None, keys=(),
+        ncores=None):
+    has_what[address] = set(keys)
+    ncores_dict[address] = ncores
+    print("Register %s" % str(address))
+    return b'OK'
 
-    Operations:
+def unregister(who_has, has_what, ncores, reader, writer, address=None):
+    keys = has_what.pop(address)
+    del ncores[address]
+    for key in keys:
+        who_has[key].remove(address)
+    return b'OK'
 
-    *  register: register a new worker
-    *  unregister: remove a known worker
-    *  add_keys: state that a worker has gained certain keys
-    *  del_keys: state that a worker has lost certain keys
-    *  who_has: ask which workers have certain keys
-    *  has_what: ask which keys a set of workers has
-    """
-    log("msg received: " + str(msg))
-    if msg['op'] == 'register':
-        has_what[msg['address']] = set(msg.get('keys', ()))
-        ncores[msg['address']] = msg['ncores']
-        print("Register %s" % str(msg['address']))
-        if msg.get('reply'):
-            yield from write(writer, b'OK')
+def add_keys(who_has, has_what, ncores, reader, writer, address=None,
+        keys=()):
+    has_what[address].update(keys)
+    for key in keys:
+        who_has[key].add(address)
+    return b'OK'
 
-    if msg['op'] == 'unregister':
-        keys = has_what.pop(msg['address'])
-        del ncores[msg['address']]
-        for key in keys:
-            who_has[key].remove(msg['address'])
-        if msg.get('reply'):
-            yield from write(writer, b'OK')
+def del_keys(who_has, has_what, ncores, reader, writer, keys=(),
+        address=None):
+    for key in keys:
+        if key in has_what[address]:
+            has_what[address].remove(key)
+        try:
+            who_has[key].remove(address)
+        except KeyError:
+            pass
+    return b'OK'
 
-    if msg['op'] == 'add_keys':
-        has_what[msg['address']].update(msg['keys'])
-        for key in msg['keys']:
-            who_has[key].add(msg['address'])
-        if msg.get('reply'):
-            yield from write(writer, b'OK')
+def who_has(who_has, has_what, ncores, reader, writer, keys=None):
+    if keys is not None:
+        return {k: who_has[k] for k in keys}
+    else:
+        return who_has
 
-    if msg['op'] == 'del_keys':
-        for key in msg['keys']:
-            if key in has_what[msg['address']]:
-                has_what[msg['address']].remove(key)
-            try:
-                who_has[key].remove(msg['address'])
-            except KeyError:
-                pass
-        if msg.get('reply'):
-            yield from write(writer, b'OK')
+def has_what(who_has, has_what, ncores, reader, writer, keys=None):
+    if keys is not None:
+        return {k: has_what[k] for k in keys}
+    else:
+        return has_what
 
-    if msg['op'] == 'who_has':
-        if 'keys' in msg:
-            result = {k: who_has[k] for k in msg['keys']}
-        else:
-            result = who_has
-        yield from write(writer, result)
-
-    if msg['op'] == 'has_what':
-        if 'keys' in msg:
-            result = {k: has_what[k] for k in msg['keys']}
-        else:
-            result = has_what
-        yield from write(writer, result)
-
-    if msg['op'] == 'ncores':
-        if 'addresses' in msg:
-            result = {k: ncores[k] for k in msg['addresses']}
-        else:
-            result = ncores
-        yield from write(writer, result)
+def ncores(who_has, has_what, ncores, reader, writer, addresses=None):
+    if addresses is not None:
+        return {k: ncores[k] for k in addresses}
+    else:
+        return ncores

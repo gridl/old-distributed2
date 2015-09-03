@@ -3,8 +3,9 @@ import random
 from toolz import merge, partial
 from multiprocessing.pool import ThreadPool
 
-from .core import (read, write, connect, delay, manage_data, client_connected,
-        spawn_loop, rpc)
+from .core import (read, write, connect, delay, client_connected, get_data,
+        update_data, delete_data, spawn_loop, rpc)
+from . import core
 
 
 _ncores = ThreadPool()._processes
@@ -62,13 +63,12 @@ class Worker(object):
 
     @asyncio.coroutine
     def go(self):
-        data_cor = partial(manage_data, self.data)
         work_cor = partial(work, self.loop, self.data, self.ip, self.port,
                                  self.center_ip, self.center_port)
         handlers = {'compute': work_cor,
-                    'get_data': data_cor,
-                    'update_data': data_cor,
-                    'del_data': data_cor}
+                    'get_data': partial(get_data, self.data),
+                    'update_data': partial(update_data, self.data),
+                    'del_data': partial(delete_data, self.data)}
 
         resp = yield from rpc(self.center_ip, self.center_port).register(
                               ncores=self.ncores, address=(self.ip, self.port),
@@ -107,7 +107,7 @@ class Worker(object):
 
 
 @asyncio.coroutine
-def collect(loop, reader, writer, needed):
+def collect(loop, reader, writer, needed=None):
     """ Collect data from peers """
     who_has = yield from rpc(reader, writer).who_has(keys=needed, loop=loop)
     assert set(who_has) == set(needed)
@@ -124,18 +124,11 @@ def collect(loop, reader, writer, needed):
 job_counter = [0]
 
 @asyncio.coroutine
-def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
+def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer,
+        function=None, key=None, args=(), kwargs={}, needed=[]):
     """ Execute function """
     m_reader, m_writer = yield from connect(metadata_ip, metadata_port,
                                             loop=loop)
-    assert msg['op'] == 'compute'
-
-    # Unpack message
-    function = msg['function']
-    key = msg['key']
-    args = msg.get('args', ())
-    kwargs = dict(msg.get('kwargs', {}))
-    needed = msg.get('needed', [])
 
     needed = [n for n in needed if n not in data]
 
@@ -167,8 +160,7 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer, msg):
                                            keys=[key], close=True)
     assert response == b'OK'  # TODO: do this asynchronously?
 
-    if msg.get('reply'):
-        yield from write(writer, out_response)
+    return out_response
 
 
 def keys_to_data(o, data):

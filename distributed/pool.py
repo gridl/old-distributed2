@@ -358,11 +358,13 @@ def reverse_dict(d):
 
 @asyncio.coroutine
 def handle_task(task, loop, output, reader, writer):
-    msg = merge({'op': 'compute', 'reply': True}, task)
-    yield from write(writer, msg)
-    response = yield from read(reader)
-    output[task['index']] = RemoteData(task['key'], reader, writer, loop,
-            status=response)
+    task = task.copy()
+    index = task.pop('index')
+
+    response = yield from rpc(reader, writer).compute(**task)
+
+    output[index] = RemoteData(task['key'], reader, writer, loop,
+                               status=response)
 
 
 @asyncio.coroutine
