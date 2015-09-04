@@ -29,7 +29,7 @@ def test_metadata():
         response = yield from cc.who_has(keys=['x', 'y'])
         assert response == {'x': set(['alice']), 'y': set(['alice', 'bob'])}
 
-        response = yield from cc.del_keys(address='bob', keys=['y'])
+        response = yield from cc.remove_keys(address='bob', keys=['y'])
         assert response == b'OK'
 
         response = yield from cc.has_what(keys=['alice', 'bob'])

@@ -44,7 +44,7 @@ class Center(object):
     @asyncio.coroutine
     def go(self):
         handlers = {func.__name__: partial(func, self.who_has, self.has_what, self.ncores)
-                    for func in [add_keys, del_keys, who_has, has_what,
+                    for func in [add_keys, remove_keys, who_has, has_what,
                                  register, ncores, unregister]}
 
         self.server = yield from asyncio.start_server(
@@ -93,7 +93,7 @@ def add_keys(who_has, has_what, ncores, reader, writer, address=None,
         who_has[key].add(address)
     return b'OK'
 
-def del_keys(who_has, has_what, ncores, reader, writer, keys=(),
+def remove_keys(who_has, has_what, ncores, reader, writer, keys=(),
         address=None):
     for key in keys:
         if key in has_what[address]:
