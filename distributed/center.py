@@ -81,6 +81,7 @@ def unregister(who_has, has_what, ncores, reader, writer, address=None):
     del ncores[address]
     for key in keys:
         who_has[key].remove(address)
+    print("Unregister %s" % str(address))
     return b'OK'
 
 def add_keys(who_has, has_what, ncores, reader, writer, address=None,
