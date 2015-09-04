@@ -77,7 +77,7 @@ class Pool(object):
                           tasks, shares, extra,
                           remaining, running, finished,
                           output, worker, computation_done,
-                          self._reader_writers)
+                          self.center_ip, self.center_port)
             for i in range(count)]
             for worker, count in self.available_cores.items()]))
 
@@ -147,6 +147,7 @@ class Pool(object):
             key = str(uuid.uuid1())
 
         pc = PendingComputation(key, func, args2, kwargs2, needed,
+                                self.center_ip, self.center_port,
                                 loop=self.loop)
         yield from pc._start(ip, port, self.who_has, self.has_what,
                              self.available_cores)
@@ -179,7 +180,8 @@ class PendingComputation(object):
     >>> rd.get()  # doctest: +SKIP
     10
     """
-    def __init__(self, key, function, args, kwargs, needed, loop=None):
+    def __init__(self, key, function, args, kwargs, needed, center_ip,
+            center_port, loop=None):
         self.key = key
         self.function = function
         self.args = args
@@ -187,13 +189,15 @@ class PendingComputation(object):
         self.needed = needed
         self.loop = loop
         self.status = None
+        self.center_ip = center_ip
+        self.center_port = center_port
 
     @asyncio.coroutine
     def _start(self, ip, port, who_has=None, has_what=None,
                available_cores=None):
         msg = dict(op='compute', key=self.key, function=self.function,
                    args=self.args, kwargs=self.kwargs, needed=self.needed,
-                   reply=True)
+                   reply=True, close=True)
         self.ip = ip
         self.port = port
         self._has_what = has_what
@@ -211,9 +215,8 @@ class PendingComputation(object):
         self._who_has[self.key].add((self.ip, self.port))
         self._has_what[(self.ip, self.port)].add(self.key)
         self._available_cores[(self.ip, self.port)] += 1
-        self._result = RemoteData(self.key, reader=self.reader,
-                                  writer=self.writer, loop=self.loop,
-                                  status=self.status)
+        self._result = RemoteData(self.key, self.center_ip, self.center_port,
+                                  loop=self.loop, status=self.status)
         return self._result
 
     def get(self):
@@ -238,30 +241,32 @@ class RemoteData(object):
     >>> rd.get()  # doctest: +SKIP
     10
     """
-    def __init__(self, key, reader=None, writer=None, loop=None, status=None):
+    def __init__(self, key, center_ip, center_port, loop=None, status=None):
         self.key = key
-        self.reader = reader
-        self.writer = writer
         self.loop = loop
         self.status = status
+        self.center_ip = center_ip
+        self.center_port = center_port
 
     @asyncio.coroutine
-    def _get(self, close=True, raiseit=True):
-        result = yield from rpc(self.reader, self.writer).get_data(
-                                      keys=[self.key], close=close)
-        if close:
-            self.writer.close()
+    def _get(self, raiseit=True):
+        who_has = yield from rpc(self.center_ip, self.center_port).who_has(
+                keys=[self.key], close=True)
+        ip, port = random.choice(list(who_has[self.key]))
+        result = yield from rpc(ip, port).get_data(keys=[self.key], close=True)
+
         self._result = result[self.key]
+
         if raiseit and self.status == b'error':
             raise self._result
         else:
             return self._result
 
-    def get(self, close=True):
+    def get(self):
         try:
             return self._result
         except AttributeError:
-            result = sync(self.loop, self._get(close, raiseit=False))
+            result = sync(self.loop, self._get(raiseit=False))
             if self.status == b'error':
                 raise result
             else:
@@ -373,20 +378,21 @@ def reverse_dict(d):
 
 
 @asyncio.coroutine
-def handle_task(task, loop, output, reader, writer):
+def handle_task(task, loop, output, reader, writer, center_ip, center_port):
     task = task.copy()
     index = task.pop('index')
 
     response = yield from rpc(reader, writer).compute(**task)
 
-    output[index] = RemoteData(task['key'], reader, writer, loop,
+    output[index] = RemoteData(task['key'], center_ip, center_port, loop,
                                status=response)
 
 
 @asyncio.coroutine
 def handle_worker(loop, who_has, has_what, tasks, shares, extra,
                   remaining, running, finished,
-                  output, ident, computation_done, reader_writers,
+                  output, ident, computation_done,
+                  center_ip, center_port,
                   reader=None, writer=None):
     """ Handle one core on one remote worker
 
@@ -416,9 +422,6 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
         Identity of the worker that we're managing
     computation_done: Future
         A flag to set once we've completed all work
-    reader_writers: set
-        A set of reader-writer pairs to which we should include our own
-        This is for later cleanup
     """
     if reader is None and writer is None:
         reader, writer = yield from connect(*ident, loop=loop)
@@ -432,6 +435,12 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
             running.remove(i)
         finished.add(i)
 
+    @asyncio.coroutine
+    def _handle_task(task):
+        result = yield from handle_task(task, loop, output, reader, writer,
+                center_ip, center_port)
+        return result
+
     while ident in shares and shares[ident]:    # Process our own tasks
         i = shares[ident].pop()
         if i in finished:
@@ -440,7 +449,7 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
             passed.add(i)
 
         running.add(i)
-        yield from handle_task(tasks[i], loop, output, reader, writer)
+        yield from _handle_task(tasks[i])
         mark_done(i)
 
         who_has[tasks[i]['key']].add(ident)
@@ -452,7 +461,7 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
     while extra:                                # Process shared tasks
         i = extra.pop()
         running.add(i)
-        yield from handle_task(tasks[i], loop, output, reader, writer)
+        yield from _handle_task(tasks[i])
         mark_done(i)
 
         who_has[tasks[i]['key']].add(ident)
@@ -465,7 +474,7 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
         if i in finished:                       # We're redundant here
             continue
 
-        yield from handle_task(tasks[i], loop, output, reader, writer)
+        yield from _handle_task(tasks[i])
         mark_done(i)
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
@@ -483,12 +492,13 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
             continue
 
         running.add(i)
-        yield from handle_task(tasks[i], loop, output, reader, writer)
+        yield from _handle_task(tasks[i])
         mark_done(i)
 
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
 
+    yield from write(writer, {'op': 'close', 'close': True})
+
     if not remaining:
         computation_done.set_result(True)
-    reader_writers.add((reader, writer))
