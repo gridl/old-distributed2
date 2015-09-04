@@ -66,20 +66,27 @@ class Pool(object):
         output = [None for i in seq]
         running, finished = set(), set()
         needed = {i: task['needed'] for i, task in enumerate(tasks)}
+        remaining = set(needed)
 
         shares, extra = divide_tasks(self.who_has, needed)
 
+        computation_done = asyncio.Future()
+
         coroutines = list(concat([[
             handle_worker(self.loop, self.who_has, self.has_what,
-                          tasks, shares, extra, running, finished,
-                          output, worker)
+                          tasks, shares, extra,
+                          remaining, running, finished,
+                          output, worker, computation_done,
+                          self._reader_writers)
             for i in range(count)]
             for worker, count in self.available_cores.items()]))
 
-        reader_writers = yield from asyncio.gather(*coroutines)
+        tasks = [asyncio.async(cor) for cor in coroutines]  # start processing
+        yield from computation_done                         # wait until done
         assert all(isinstance(o, RemoteData) for o in output)
 
-        self._reader_writers.update(reader_writers)
+        for task in tasks:                                  # Cancel lingering
+            task.cancel()                                   # workers
 
         return output
 
@@ -376,12 +383,53 @@ def handle_task(task, loop, output, reader, writer):
 
 
 @asyncio.coroutine
-def handle_worker(loop, who_has, has_what, tasks, shares, extra, running,
-                  finished, output, ident, reader=None, writer=None):
+def handle_worker(loop, who_has, has_what, tasks, shares, extra,
+                  remaining, running, finished,
+                  output, ident, computation_done, reader_writers,
+                  reader=None, writer=None):
+    """ Handle one core on one remote worker
+
+    Parameters
+    ----------
+
+    loop: event loop
+    who_has: dict
+        {data-key: [worker]}
+    has_what: dict
+        {worker: [data-key]}
+    tasks: list
+        List of tasks to send to worker
+    shares: dict
+        Tasks that each worker can do :: {worker: [task-key]}
+    extra: set
+        Tasks that no worker can do alone :: {task-key}
+    remaining: set
+        Tasks that no one has yet started
+    running: set
+        Tasks that are in process
+    finished: set
+        Tasks that have completed
+    output: list
+        Remote data results to send back to user :: [RemoteData]
+    ident: (ip, port)
+        Identity of the worker that we're managing
+    computation_done: Future
+        A flag to set once we've completed all work
+    reader_writers: set
+        A set of reader-writer pairs to which we should include our own
+        This is for later cleanup
+    """
     if reader is None and writer is None:
         reader, writer = yield from connect(*ident, loop=loop)
 
     passed = set()
+
+    def mark_done(i):
+        if i in remaining:
+            remaining.remove(i)
+        if i in running:
+            running.remove(i)
+        finished.add(i)
 
     while ident in shares and shares[ident]:    # Process our own tasks
         i = shares[ident].pop()
@@ -392,8 +440,7 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra, running,
 
         running.add(i)
         yield from handle_task(tasks[i], loop, output, reader, writer)
-        running.remove(i)
-        finished.add(i)
+        mark_done(i)
 
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
@@ -405,9 +452,20 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra, running,
         i = extra.pop()
         running.add(i)
         yield from handle_task(tasks[i], loop, output, reader, writer)
-        running.remove(i)
-        finished.add(i)
+        mark_done(i)
 
+        who_has[tasks[i]['key']].add(ident)
+        has_what[ident].add(tasks[i]['key'])
+
+    passed -= finished
+
+    while passed:                               # Do our own passed work
+        i = passed.pop()                        # Sometimes others are slow
+        if i in finished:                       # We're redundant here
+            continue
+
+        yield from handle_task(tasks[i], loop, output, reader, writer)
+        mark_done(i)
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
 
@@ -425,10 +483,11 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra, running,
 
         running.add(i)
         yield from handle_task(tasks[i], loop, output, reader, writer)
-        running.remove(i)
-        finised.add(i)
+        mark_done(i)
 
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
 
-    return reader, writer
+    if not remaining:
+        computation_done.set_result(True)
+    reader_writers.add((reader, writer))
