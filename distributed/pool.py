@@ -86,7 +86,8 @@ class Pool(object):
         assert all(isinstance(o, RemoteData) for o in output)
 
         for task in tasks:                                  # Cancel lingering
-            task.cancel()                                   # workers
+            if task.cancel():                               # workers
+                log('Cancelled a running worker')
 
         return output
 
