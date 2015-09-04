@@ -70,7 +70,7 @@ def test_pool():
 
         yield from a._close()
         yield from b._close()
-        c.close()
+        yield from c._close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
 
@@ -194,7 +194,7 @@ def test_map_locality():
 
         yield from a._close()
         yield from b._close()
-        c.close()
+        yield from c._close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
 

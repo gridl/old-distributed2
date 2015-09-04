@@ -51,7 +51,7 @@ def test_worker():
 
         b_writer.close()
         yield from b._close()
-        c.close()
+        yield from c._close()
 
     loop.run_until_complete(
             asyncio.gather(c.go(), a.go(), b.go(), f(), loop=loop))
@@ -83,6 +83,6 @@ def test_log():
 
         writer.close()
         yield from a._close()
-        c.close()
+        yield from c._close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), f(), loop=loop))

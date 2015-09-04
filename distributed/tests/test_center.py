@@ -43,7 +43,7 @@ def test_metadata():
         assert 'alice' not in c.has_what
         assert 'alice' not in c.ncores
 
-        c.close()
+        yield from c._close()
 
     loop.run_until_complete(asyncio.gather(c.go(), f()))
 

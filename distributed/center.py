@@ -4,7 +4,7 @@ from functools import partial
 from queue import Queue
 from time import sleep
 
-from .core import read, write, client_connected, spawn_loop
+from .core import read, write, client_connected, spawn_loop, sync
 
 log = print
 
@@ -59,8 +59,12 @@ class Center(object):
         else:
             self._thread, _ = spawn_loop(self.go(), loop=self.loop)
 
+    @asyncio.coroutine
+    def _close(self):
+        self.server.close()
+
     def close(self):
-        self.loop.call_soon_threadsafe(self.server.close)
+        sync(self.loop, self._close())
         if hasattr(self, '_thread'):
             self._thread.join()
 
