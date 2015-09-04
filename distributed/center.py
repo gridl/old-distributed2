@@ -77,6 +77,8 @@ def register(who_has, has_what, ncores_dict, reader, writer, address=None, keys=
     return b'OK'
 
 def unregister(who_has, has_what, ncores, reader, writer, address=None):
+    if address not in has_what:
+        return b'Address not found: ' + str(address).encode()
     keys = has_what.pop(address)
     del ncores[address]
     for key in keys:
