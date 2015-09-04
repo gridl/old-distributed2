@@ -17,12 +17,16 @@ def test_server():
                 '*', 8003, loop=loop)
         reader, writer = yield from connect('127.0.0.1', 8003, loop=loop)
 
-        msg = {'op': 'ping', 'close': True}
-
+        msg = {'op': 'ping', 'close': False}
         yield from write(writer, msg)
         response = yield from read(reader)
-
         assert response == b'pong'
+
+        msg = {'op': 'foo', 'close': True}
+        yield from write(writer, msg)
+        response = yield from read(reader)
+        assert b'foo' in response
+
         server.close()
         yield from server.wait_closed()
 

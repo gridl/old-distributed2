@@ -87,7 +87,7 @@ def client_connected(handlers, reader, writer):
             try:
                 handler = handlers[op]
             except KeyError:
-                result = b'No handler found: ' + op
+                result = b'No handler found: ' + op.encode()
             else:
                 if iscoroutine(handler):
                     result = yield from handler(reader, writer, **msg)
