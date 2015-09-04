@@ -54,6 +54,7 @@ class Worker(object):
         self.loop = loop or asyncio.new_event_loop()
         self.ncores = ncores or _ncores
         self.data = dict()
+        self.status = None
         self._log = []
 
         self.log('Create')
@@ -83,6 +84,7 @@ class Worker(object):
                 loop=self.loop)
         self.log('Start Server', self.bind, self.port)
         log('Start worker')
+        self.status = 'running'
         yield from self.server.wait_closed()
         self.log('Server closed')
         log('Stop worker')
@@ -106,6 +108,7 @@ class Worker(object):
         yield from rpc(self.center_ip, self.center_port, loop=self.loop).unregister(close=True,
                 address=(self.ip, self.port))
         self.server.close()
+        self.status = 'closed'
 
     def close(self):
         result = sync(self.loop, self._close())
