@@ -93,7 +93,11 @@ class Worker(object):
         If block is false then run the event loop in a separate thread
         """
         if block:
-            self.loop.run_until_complete(self.go())
+            try:
+                self.loop.run_until_complete(self.go())
+            except KeyboardInterrupt as e:
+                self.loop.run_until_complete(self._close())
+                raise e
         else:
             self._thread, _ = spawn_loop(self.go(), loop=self.loop)
 
