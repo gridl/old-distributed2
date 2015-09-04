@@ -168,10 +168,11 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer,
         out_response = b'error'
     data[key] = result
 
-    # Tell center about or new data
+    # Tell center about our new data
     response = yield from rpc(m_reader, m_writer).add_keys(address=(ip, port),
                                            keys=[key], close=True)
-    assert response == b'OK'  # TODO: do this asynchronously?
+    if not response == b'OK':
+        log('Could not report results of work to center: ' + response.decode())
 
     return out_response
 
