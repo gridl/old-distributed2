@@ -64,14 +64,15 @@ class Pool(object):
                               needed=needed, index=i))
 
         output = [None for i in seq]
-        seen = set()
+        running, finished = set(), set()
         needed = {i: task['needed'] for i, task in enumerate(tasks)}
 
         shares, extra = divide_tasks(self.who_has, needed)
 
         coroutines = list(concat([[
             handle_worker(self.loop, self.who_has, self.has_what,
-                          tasks, shares, extra, seen, output, worker)
+                          tasks, shares, extra, running, finished,
+                          output, worker)
             for i in range(count)]
             for worker, count in self.available_cores.items()]))
 
@@ -375,19 +376,25 @@ def handle_task(task, loop, output, reader, writer):
 
 
 @asyncio.coroutine
-def handle_worker(loop, who_has, has_what, tasks, shares, extra, seen, output,
-                  ident, reader=None, writer=None):
+def handle_worker(loop, who_has, has_what, tasks, shares, extra, running,
+                  finished, output, ident, reader=None, writer=None):
     if reader is None and writer is None:
         reader, writer = yield from connect(*ident, loop=loop)
 
+    passed = set()
+
     while ident in shares and shares[ident]:    # Process our own tasks
         i = shares[ident].pop()
-        if i in seen:
+        if i in finished:
             continue
+        if i in running:
+            passed.add(i)
 
-        seen.add(i)
-
+        running.add(i)
         yield from handle_task(tasks[i], loop, output, reader, writer)
+        running.remove(i)
+        finished.add(i)
+
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
 
@@ -396,8 +403,11 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra, seen, output,
 
     while extra:                                # Process shared tasks
         i = extra.pop()
-        seen.add(i)
+        running.add(i)
         yield from handle_task(tasks[i], loop, output, reader, writer)
+        running.remove(i)
+        finished.add(i)
+
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
 
@@ -410,12 +420,14 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra, seen, output,
 
         i = jobs.pop()
 
-        if i in seen:
+        if i in finished or i in running:
             continue
 
-        seen.add(i)
-
+        running.add(i)
         yield from handle_task(tasks[i], loop, output, reader, writer)
+        running.remove(i)
+        finised.add(i)
+
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
 
