@@ -10,6 +10,9 @@ from toolz.curried import map, filter
 from .core import read, write, connect, spawn_loop, sync, rpc
 
 
+log = print
+
+
 class Pool(object):
     """ Remote computation pool
 
@@ -447,6 +450,8 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
             continue
         if i in running:
             passed.add(i)
+            log("Passing on %s" % str(i))
+            continue
 
         running.add(i)
         yield from _handle_task(tasks[i])
@@ -474,22 +479,31 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
         if i in finished:                       # We're redundant here
             continue
 
+        log("Redundantly computing %s" % str(i))
         yield from _handle_task(tasks[i])
         mark_done(i)
         who_has[tasks[i]['key']].add(ident)
         has_what[ident].add(tasks[i]['key'])
 
     while shares:                               # Steal work from others
-        worker = max(shares, key=lambda w: len(shares[w]))
+        yield from []
+        worker = random.choice(list(shares))
         jobs = shares[worker]
         if not jobs:
             del shares[worker]
             continue
 
-        i = jobs.pop()
+        # Walk down the list of jobs and find one that isn't finished/running
+        j = 0
+        while j < len(jobs) and (jobs[-j] in finished or jobs[-j] in running):
+            j += 1
 
-        if i in finished or i in running:
-            continue
+        # If we found one then run it
+        if j < len(jobs):
+            i = jobs[-j]
+            log("Stealing %s" % str(i))
+        else:
+            break
 
         running.add(i)
         yield from _handle_task(tasks[i])
