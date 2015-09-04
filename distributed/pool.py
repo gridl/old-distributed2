@@ -54,6 +54,7 @@ class Pool(object):
 
     @asyncio.coroutine
     def _map(self, func, seq, **kwargs):
+        yield from self._sync_center()
         tasks = []
         for i, item in enumerate(seq):
             needed, args2, kwargs2 = needed_args_kwargs((item,), kwargs)

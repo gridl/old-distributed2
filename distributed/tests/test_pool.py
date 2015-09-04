@@ -111,8 +111,10 @@ def cluster(**kwargs):
     try:
         yield c, a, b
     finally:
-        a.close()
-        b.close()
+        if a.status != 'closed':
+            a.close()
+        if b.status != 'closed':
+            b.close()
         c.close()
         kill_q.put(b'')
         # thread.join()
@@ -225,3 +227,15 @@ def test_multiworkers():
         assert maximum[0] > 5
 
         pool.close()
+
+
+def test_closing_workers():
+    with cluster() as (c, a, b):
+        p = Pool(c.ip, c.port)
+
+        a.close()
+
+        result = p.map(lambda x: x + 1, range(3))
+
+        assert list(p.available_cores.keys()) == [(b.ip, b.port)]
+        p.close()
