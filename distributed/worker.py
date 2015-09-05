@@ -69,7 +69,7 @@ class Worker(object):
         handlers = {'compute': work_cor,
                     'get_data': partial(get_data, self.data),
                     'update_data': partial(update_data, self.data),
-                    'del_data': partial(delete_data, self.data)}
+                    'delete_data': partial(delete_data, self.data)}
 
         resp = yield from rpc(self.center_ip, self.center_port).register(
                               ncores=self.ncores, address=(self.ip, self.port),

@@ -38,7 +38,7 @@ def test_manage_data():
     handlers = {'ping': pingpong,
                 'get_data': partial(get_data, d),
                 'update_data': partial(update_data, d),
-                'del_data': partial(delete_data, d)}
+                'delete_data': partial(delete_data, d)}
     s = asyncio.start_server(client_connected(handlers),
                              '*', 8004, loop=loop)
 
@@ -57,7 +57,7 @@ def test_manage_data():
         response = yield from read(reader)
         assert response == {'y': 2}
 
-        msg = {'op': 'del_data', 'keys': ['y'], 'close': True}
+        msg = {'op': 'delete_data', 'keys': ['y'], 'close': True}
         yield from write(writer, msg)
         response = yield from read(reader)
         assert response == b'OK'
