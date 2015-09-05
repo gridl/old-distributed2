@@ -2,6 +2,7 @@ import asyncio
 from operator import add
 from queue import Queue
 from time import time
+from toolz import merge
 
 from distributed.center import Center
 from distributed.worker import Worker
@@ -239,3 +240,27 @@ def test_closing_workers():
 
         assert list(p.available_cores.keys()) == [(b.ip, b.port)]
         p.close()
+
+
+def test_scatter_delete():
+    c = Center('127.0.0.1', 8017, loop=loop)
+
+    a = Worker('127.0.0.1', 8018, c.ip, c.port, loop=loop, ncores=1)
+    b = Worker('127.0.0.1', 8019, c.ip, c.port, loop=loop, ncores=1)
+
+    p = Pool(c.ip, c.port, loop=loop, start=False)
+
+    @asyncio.coroutine
+    def f():
+        yield from p._sync_center()
+
+        data = yield from p._scatter([1, 2, 3])
+
+        assert merge(a.data, b.data) == \
+                {d.key: i for d, i in zip(data, [1, 2, 3])}
+
+        yield from a._close()
+        yield from b._close()
+        yield from c._close()
+
+    loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))

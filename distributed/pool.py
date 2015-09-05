@@ -3,14 +3,17 @@ from collections import namedtuple
 import random
 from queue import Queue
 import uuid
+from itertools import cycle, count
 
-from toolz import merge, partial, pipe, concat, frequencies, concat
+from toolz import merge, partial, pipe, concat, frequencies, concat, groupby
 from toolz.curried import map, filter
 
 from .core import read, write, connect, spawn_loop, sync, rpc
 
 
 log = print
+
+no_default = '__no_default__'
 
 
 class Pool(object):
@@ -168,6 +171,31 @@ class Pool(object):
     def apply(self, func, args=(), kwargs={}, key=None):
         return self.apply_async(func, args, kwargs, key).get()
 
+    @asyncio.coroutine
+    def _scatter(self, data, key=None):
+        yield from self._sync_center()
+        if key is None:
+            key = str(uuid.uuid1())
+
+        workers = list(concat([w] * nc for w, nc in self.available_cores.items()))
+        names = ('%s-%d' % (key, i) for i in count(0))
+
+        L = list(zip(cycle(workers), names, data))
+        d = groupby(0, L)
+        d = {k: {b: c for a, b, c in v}
+              for k, v in d.items()}
+
+        coroutines = [rpc(*w).update_data(data=v)
+                      for w, v in d.items()]
+
+        yield from asyncio.gather(*coroutines, loop=self.loop)
+
+        result = [RemoteData(b, self.center_ip, self.center_port,
+                             self.loop, result=c)
+                    for a, b, c in L]
+
+        return result
+
 
 class PendingComputation(object):
     """ A future for a computation that done in a remote worker
@@ -244,12 +272,14 @@ class RemoteData(object):
     >>> rd.get()  # doctest: +SKIP
     10
     """
-    def __init__(self, key, center_ip, center_port, loop=None, status=None):
+    def __init__(self, key, center_ip, center_port, loop=None, status=None,
+            result=no_default):
         self.key = key
         self.loop = loop
         self.status = status
         self.center_ip = center_ip
         self.center_port = center_port
+        self._result = result
 
     @asyncio.coroutine
     def _get(self, raiseit=True):
@@ -266,9 +296,9 @@ class RemoteData(object):
             return self._result
 
     def get(self):
-        try:
+        if self._result is not no_default:
             return self._result
-        except AttributeError:
+        else:
             result = sync(self.loop, self._get(raiseit=False))
             if self.status == b'error':
                 raise result
