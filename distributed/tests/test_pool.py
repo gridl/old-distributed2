@@ -189,14 +189,14 @@ def test_map_locality():
         aval = set(a.data.values())
         bval = set(b.data.values())
 
-        assert sum(-v in aval for v in aval) > 0.8 * len(aval)
-        assert sum(-v in bval for v in bval) > 0.8 * len(bval)
-
-        yield from p._close_connections()
-
-        yield from a._close()
-        yield from b._close()
-        yield from c._close()
+        try:
+            assert sum(-v in aval for v in aval) > 0.8 * len(aval)
+            assert sum(-v in bval for v in bval) > 0.8 * len(bval)
+        finally:
+            yield from p._close_connections()
+            yield from a._close()
+            yield from b._close()
+            yield from c._close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
 
