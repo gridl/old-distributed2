@@ -4,7 +4,7 @@ from functools import partial
 from queue import Queue
 from time import sleep
 
-from .core import read, write, client_connected, spawn_loop, sync
+from .core import read, write, client_connected, spawn_loop, sync, rpc
 
 log = print
 
@@ -46,6 +46,8 @@ class Center(object):
         handlers = {func.__name__: partial(func, self.who_has, self.has_what, self.ncores)
                     for func in [add_keys, remove_keys, who_has, has_what,
                                  register, ncores, unregister]}
+        handlers['delete_data'] = partial(delete_data, self.loop, self.who_has,
+                self.has_what)
 
         self.server = yield from asyncio.start_server(
                 client_connected(handlers), self.bind, self.port,
@@ -121,3 +123,21 @@ def ncores(who_has, has_what, ncores, reader, writer, addresses=None):
         return {k: ncores[k] for k in addresses}
     else:
         return ncores
+
+@asyncio.coroutine
+def delete_data(loop, who_has, has_what, reader, writer, keys=None):
+    who_has2 = {k: v for k, v in who_has.items() if k in keys}
+    d = defaultdict(list)
+
+    for key in keys:
+        for worker in who_has[key]:
+            has_what[worker].remove(key)
+            d[worker].append(key)
+        del who_has[key]
+
+    coroutines = [rpc(*worker).delete_data(keys=keys)
+                  for worker, keys in d.items()]
+
+    yield from asyncio.gather(*coroutines, loop=loop)
+
+    return b'OK'

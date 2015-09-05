@@ -55,3 +55,25 @@ def test_thread():
         sleep(0.01)
     c.close()
     assert not c.loop.is_running()
+
+
+def test_delete_data():
+    from distributed import Worker
+    c = Center('127.0.0.1', 8037, loop=loop)
+    a = Worker('127.0.0.1', 8038, c.ip, c.port, loop=loop)
+    @asyncio.coroutine
+    def f():
+        yield from rpc(a.ip, a.port).update_data(data={'x': 1, 'y': 2})
+        assert a.data == {'x': 1, 'y': 2}
+        yield from rpc(c.ip, c.port).add_keys(address=(a.ip, a.port),
+                                              keys=['x', 'y'])
+        yield from rpc(c.ip, c.port).delete_data(keys=['x'])
+
+        assert a.data == {'y': 2}
+        assert not c.who_has['x']
+        assert list(c.has_what[(a.ip, a.port)]) == ['y']
+
+        yield from a._close()
+        yield from c._close()
+
+    loop.run_until_complete(asyncio.gather(c.go(), a.go(), f()))

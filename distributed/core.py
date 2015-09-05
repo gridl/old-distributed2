@@ -8,6 +8,8 @@ from dill import loads, dumps
 from toolz import curry
 
 
+log = print
+
 @asyncio.coroutine
 def read(reader):
     """ Read Python object from reader socket
@@ -88,6 +90,7 @@ def client_connected(handlers, reader, writer):
                 handler = handlers[op]
             except KeyError:
                 result = b'No handler found: ' + op.encode()
+                log(result)
             else:
                 if iscoroutine(handler):
                     result = yield from handler(reader, writer, **msg)
