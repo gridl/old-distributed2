@@ -138,15 +138,20 @@ def send_recv(reader, writer, reply=True, loop=None, **kwargs):
     response = yield from send_recv(reader, writer, op='ping', reply=True)
     """
     if isinstance(reader, (bytes, str)) and isinstance(writer, int):
+        given_ip_port = True
         reader, writer = yield from connect(reader, writer, loop=loop)
+    else:
+        given_ip_port = False
     msg = kwargs
     msg['reply'] = reply
+    if 'close' not in msg:
+        msg['close'] = given_ip_port
     yield from write(writer, msg)
     if reply:
         response = yield from read(reader)
     else:
         response = None
-    if kwargs.get('close'):
+    if kwargs['close']:
         writer.close()
     return response
 

@@ -73,7 +73,7 @@ class Worker(object):
 
         resp = yield from rpc(self.center_ip, self.center_port).register(
                               ncores=self.ncores, address=(self.ip, self.port),
-                              close=True, loop=self.loop)
+                              loop=self.loop)
         assert resp == b'OK'
         log('Registered with center')
         self.log('Register with Center', self.center_ip, self.center_port,
@@ -105,7 +105,7 @@ class Worker(object):
 
     @asyncio.coroutine
     def _close(self):
-        yield from rpc(self.center_ip, self.center_port, loop=self.loop).unregister(close=True,
+        yield from rpc(self.center_ip, self.center_port, loop=self.loop).unregister(
                 address=(self.ip, self.port))
         self.server.close()
         self.status = 'closed'
@@ -126,7 +126,7 @@ def collect(loop, reader, writer, needed=None):
     assert set(who_has) == set(needed)
 
     coroutines = [rpc(*random.choice(list(addresses))).get_data(keys=[key],
-            loop=loop, close=True) for key, addresses in who_has.items()]
+            loop=loop) for key, addresses in who_has.items()]
 
     results = yield from asyncio.gather(*coroutines, loop=loop)
 
@@ -169,8 +169,8 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer,
     data[key] = result
 
     # Tell center about our new data
-    response = yield from rpc(m_reader, m_writer).add_keys(address=(ip, port),
-                                           keys=[key], close=True)
+    response = yield from rpc(m_reader, m_writer).add_keys(
+            address=(ip, port), close=True, keys=[key])
     if not response == b'OK':
         log('Could not report results of work to center: ' + response.decode())
 
