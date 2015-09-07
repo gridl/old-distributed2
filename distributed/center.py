@@ -135,7 +135,7 @@ def delete_data(loop, who_has, has_what, reader, writer, keys=None):
             d[worker].append(key)
         del who_has[key]
 
-    coroutines = [rpc(*worker).delete_data(keys=keys)
+    coroutines = [rpc(*worker).delete_data(keys=keys, report=False)
                   for worker, keys in d.items()]
 
     yield from asyncio.gather(*coroutines, loop=loop)

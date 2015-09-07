@@ -4,7 +4,7 @@ from toolz import merge, partial
 from multiprocessing.pool import ThreadPool
 
 from .core import (read, write, connect, delay, client_connected, get_data,
-        update_data, delete_data, spawn_loop, rpc, sync)
+        spawn_loop, rpc, sync)
 from . import core
 
 
@@ -64,12 +64,16 @@ class Worker(object):
 
     @asyncio.coroutine
     def go(self):
-        work_cor = partial(work, self.loop, self.data, self.ip, self.port,
-                                 self.center_ip, self.center_port)
-        handlers = {'compute': work_cor,
+        handlers = {'compute': partial(work, self.loop, self.data,
+                                             self.ip, self.port,
+                                             self.center_ip, self.center_port),
                     'get_data': partial(get_data, self.data),
-                    'update_data': partial(update_data, self.data),
-                    'delete_data': partial(delete_data, self.data)}
+                    'update_data': partial(update_data, self.loop, self.data,
+                                           self.ip, self.port,
+                                           self.center_ip, self.center_port),
+                    'delete_data': partial(delete_data, self.loop, self.data,
+                                           self.ip, self.port,
+                                           self.center_ip, self.center_port)}
 
         resp = yield from rpc(self.center_ip, self.center_port).register(
                               ncores=self.ncores, address=(self.ip, self.port),
@@ -205,3 +209,25 @@ def keys_to_data(o, data):
             except (TypeError, KeyError):
                 result[k] = v
     return result
+
+
+@asyncio.coroutine
+def update_data(loop, old_data, ip, port, center_ip, center_port,
+                reader, writer, data=None, report=True):
+    old_data.update(data)
+    if report:
+        yield from rpc(center_ip, center_port, loop=loop).add_keys(
+                address=(ip, port), keys=list(data))
+    return b'OK'
+
+
+@asyncio.coroutine
+def delete_data(loop, data, ip, port, center_ip, center_port, reader, writer,
+                keys=None, report=True):
+    for key in keys:
+        if key in data:
+            del data[key]
+    if report:
+        yield from rpc(center_ip, center_port, loop=loop).remove_keys(
+                address=(ip, port), keys=keys)
+    return b'OK'
