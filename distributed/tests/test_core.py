@@ -39,11 +39,11 @@ def test_manage_data():
                 'get_data': partial(get_data, d),
                 'update_data': partial(update_data, d),
                 'delete_data': partial(delete_data, d)}
-    s = asyncio.start_server(client_connected(handlers),
-                             '*', 8004, loop=loop)
 
     @asyncio.coroutine
     def f():
+        server = yield from asyncio.start_server(client_connected(handlers),
+                                                 '*', 8004, loop=loop)
         reader, writer = yield from connect('127.0.0.1', 8004, loop=loop)
 
         msg = {'op': 'update_data', 'data': {'x': 1, 'y': 2}}
@@ -63,7 +63,10 @@ def test_manage_data():
         assert response == b'OK'
         assert d == {'x': 1}
 
-    loop.run_until_complete(asyncio.gather(s, f()))
+        server.close()
+        yield from server.wait_closed()
+
+    loop.run_until_complete(f())
 
 
 def test_connect_timeout():
