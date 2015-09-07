@@ -196,6 +196,9 @@ class Pool(object):
 
         return result
 
+    def scatter(self, data, key=None):
+        return sync(self.loop, self._scatter(data, key))
+
 
 class PendingComputation(object):
     """ A future for a computation that done in a remote worker

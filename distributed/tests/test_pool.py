@@ -274,3 +274,22 @@ def test_scatter_delete():
         yield from c._close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
+
+
+def test_scatter_delete_sync():
+    with cluster() as (c, a, b):
+        pool = Pool(c.ip, c.port)
+        x, y, z = pool.scatter([1, 2, 3])
+
+        assert set(c.who_has) == {x.key, y.key, z.key}
+        assert set.union(*c.who_has.values()).issubset({(a.ip, a.port),
+                                                        (b.ip, b.port)})
+
+        y.delete()
+
+        assert set(c.who_has) == {x.key, z.key}
+        assert set.union(*c.who_has.values()).issubset({(a.ip, a.port),
+                                                        (b.ip, b.port)})
+        assert merge(a.data, b.data) == {x.key: 1, z.key: 3}
+
+        pool.close()
