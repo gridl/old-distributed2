@@ -20,11 +20,5 @@ ip = ip or [(s.connect(('8.8.8.8', 80)), s.getsockname()[0], s.close())
 from distributed import Center
 print("Start center at %s:%d" % (ip, port))
 c = Center(ip, 8787, start=True, block=True)
-"""
-try:
-    c._thread.join()
-except KeyboardInterrupt:
-    c.close()
-"""
 
-print("End center")
+print("End center at %s:%d" % (ip, port))

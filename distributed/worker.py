@@ -96,9 +96,11 @@ class Worker(object):
         """
         if block:
             try:
-                self.loop.run_until_complete(self.go())
+                self._go_task = asyncio.Task(self.go(), loop=self.loop)
+                self.loop.run_until_complete(self._go_task)
             except KeyboardInterrupt as e:
                 self.loop.run_until_complete(self._close())
+                self.loop.run_until_complete(self._go_task)
                 raise e
         else:
             self._thread, _ = spawn_loop(self.go(), loop=self.loop)

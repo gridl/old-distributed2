@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from sys import argv
+from sys import argv, exit
 
 try:
     center_ip, center_port = argv[1].split(':')
@@ -13,26 +13,32 @@ ip = [(s.connect(('8.8.8.8', 80)), s.getsockname()[0], s.close())
         for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]
 
 from distributed import Worker
-
 port = 8788
+worker = Worker(ip, port, center_ip, center_port, start=False)
+
+import signal
+
+def signal_term_handler(signal, frame):
+    import asyncio
+    print("Closing worker")
+    asyncio.async(worker._close(), loop=worker.loop)
+
+signal.signal(signal.SIGTERM, signal_term_handler)
+
+
 while True:
     try:
         print("Start worker at %s:%d\nCenter at %s:%d" % 
                 (ip, port, center_ip, center_port))
-
-        w = Worker(ip, port, center_ip, center_port, start=True, block=True)
+        worker.start(block=True)
+    except KeyboardInterrupt:
+        assert worker.status == 'closed'
     except OSError as e:
         print("Error: %s" % str(e))
-        port += 1
+        worker.port += 1
         continue
     else:
         break
 
 
-"""
-try:
-    w._thread.join()
-except KeyboardInterrupt:
-    w.close()
-    """
 print("End worker at %s:%d" % (ip, port))
