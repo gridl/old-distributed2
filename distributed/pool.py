@@ -305,6 +305,14 @@ class RemoteData(object):
             else:
                 return result
 
+    @asyncio.coroutine
+    def _delete(self):
+        yield from rpc(self.center_ip, self.center_port).delete_data(
+                keys=[self.key])
+
+    def delete(self):
+        sync(self.loop, self._delete())
+
 
 def choose_worker(needed, who_has, has_what, available_cores):
     """ Select worker to run computation

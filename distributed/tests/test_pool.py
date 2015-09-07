@@ -259,6 +259,16 @@ def test_scatter_delete():
         assert merge(a.data, b.data) == \
                 {d.key: i for d, i in zip(data, [1, 2, 3])}
 
+        assert set(c.who_has) == {d.key for d in data}
+        assert all(len(v) == 1 for v in c.who_has.values())
+
+        yield from data[0]._delete()
+
+        assert merge(a.data, b.data) == \
+                {d.key: i for d, i in zip(data[1:], [2, 3])}
+
+        assert data[0].key not in c.who_has
+
         yield from a._close()
         yield from b._close()
         yield from c._close()
