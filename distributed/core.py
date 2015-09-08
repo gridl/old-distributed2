@@ -203,7 +203,10 @@ def sync(cor, loop=None):
         result = yield from cor
         q.put(result)
 
-    loop.call_soon_threadsafe(asyncio.async, f())
+    if not loop.is_running():
+        loop.run_until_complete(f())
+    else:
+        loop.call_soon_threadsafe(asyncio.async, f())
     return q.get()
 
 

@@ -48,3 +48,21 @@ def test_scatter_delete():
         yield from c._close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
+
+
+def test_sync_interactively():
+    c = Center('127.0.0.1', 8017, start=True, block=False)
+    a = Worker('127.0.0.1', 8018, c.ip, c.port, ncores=1,
+            start=True, block=False)
+    b = Worker('127.0.0.1', 8019, c.ip, c.port, ncores=1,
+            start=True, block=False)
+
+    try:
+        values = [1, 2, 3, 4, 5, 6, 7, 8]
+        data = sync(scatter_to_center(c.ip, c.port, values))
+        assert merge(a.data, b.data) == {d.key: v for d, v in zip(data,
+            values)}
+    finally:
+        a.close()
+        b.close()
+        c.close()
