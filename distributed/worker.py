@@ -58,8 +58,6 @@ class Worker(object):
         self.status = None
         self._log = []
 
-        self.log('Create')
-
         if start:
             self.start(block)
 
@@ -80,20 +78,16 @@ class Worker(object):
         self.server = yield from asyncio.start_server(
                 client_connected(handlers), self.bind, self.port,
                 loop=self.loop)
-        self.log('Start Server', self.bind, self.port)
 
         resp = yield from rpc(self.center_ip, self.center_port).register(
                               ncores=self.ncores, address=(self.ip, self.port),
                               loop=self.loop)
         assert resp == b'OK'
         log('Registered with center')
-        self.log('Register with Center', self.center_ip, self.center_port,
-                self.ip, self.port)
 
         log('Start worker')
         self.status = 'running'
         yield from self.server.wait_closed()
-        self.log('Server closed')
         log('Stop worker')
 
     def start(self, block):

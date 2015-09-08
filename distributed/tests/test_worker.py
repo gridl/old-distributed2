@@ -70,24 +70,6 @@ def test_thread():
     assert not w.loop.is_running()
 
 
-def test_log():
-    c = Center('127.0.0.1', 8037, loop=loop)
-    a = Worker('127.0.0.1', 8038, c.ip, c.port, loop=loop)
-    @asyncio.coroutine
-    def f():
-        reader, writer = yield from connect('127.0.0.1', a.port, loop=loop)
-        assert a._log
-
-        yield from write(writer, {'op': 'close', 'reply': True})
-        yield from read(reader)
-
-        writer.close()
-        yield from a._close()
-        yield from c._close()
-
-    loop.run_until_complete(asyncio.gather(c.go(), a.go(), f(), loop=loop))
-
-
 def test_workers_update_center():
     c = Center('127.0.0.1', 8007, loop=loop)
     a = Worker('127.0.0.1', 8008, c.ip, c.port, loop=loop)
