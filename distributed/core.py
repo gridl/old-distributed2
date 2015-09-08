@@ -46,7 +46,7 @@ def write(writer, msg):
 
 
 @asyncio.coroutine
-def connect(host, port, delay=0.1, timeout=None, loop=None):
+def connect(host, port, delay=0.1, timeout=1, loop=None):
     """ Connect to ip/port pair.  Return reader/writer pair
 
     This is like ``asyncio.open_connection`` but retries if the remote
