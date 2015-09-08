@@ -6,6 +6,15 @@ from .core import rpc, sync
 log = print
 
 def normalize_host_port(x, default_port=8787):
+    """ Normalize input to host, port pair
+
+    >>> normalize_host_port('127.0.0.1:8000')
+    ('127.0.0.1', 8000)
+    >>> normalize_host_port('127.0.0.1', default_port=8000)
+    ('127.0.0.1', 8000)
+    >>> normalize_host_port(('127.0.0.1', 8000))
+    ('127.0.0.1', 8000)
+    """
     if isinstance(x, (tuple, list)):
         host, port = x
     if isinstance(x, str) and ':' in x:
@@ -14,6 +23,7 @@ def normalize_host_port(x, default_port=8787):
         host, port = x, default_port
     port = int(port)
     return (host, port)
+
 
 class Cluster(object):
     """ Proxy for a cluster of Workers around a Center
@@ -49,6 +59,7 @@ class Cluster(object):
 
     @property
     def hosts(self):
+        """ Just the hosts, not the ports """
         return tuple(host for host, port in self.host_ports)
 
     def start(self):
@@ -60,6 +71,13 @@ class Cluster(object):
             self.remote(host, command)
 
     def remote(self, host, command):
+        """ Execute command on host
+
+        1.  Create an ssh connection with the stored authentication
+        2.  Execute the given command string
+        3.  Log stdout and stderr
+        4.  Close ssh connection
+        """
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(host, **self.auth)
@@ -70,6 +88,7 @@ class Cluster(object):
         ssh.close()
 
     def close(self, loop=None):
+        """ Terminate remote workers and center """
         loop = loop or asyncio.get_event_loop()
 
         coroutines = [rpc(host, port, loop).terminate() for host, port in
