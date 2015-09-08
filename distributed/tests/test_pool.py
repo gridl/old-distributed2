@@ -242,43 +242,10 @@ def test_closing_workers():
         p.close()
 
 
-def test_scatter_delete():
-    c = Center('127.0.0.1', 8017, loop=loop)
-
-    a = Worker('127.0.0.1', 8018, c.ip, c.port, loop=loop, ncores=1)
-    b = Worker('127.0.0.1', 8019, c.ip, c.port, loop=loop, ncores=1)
-
-    p = Pool(c.ip, c.port, loop=loop, start=False)
-
-    @asyncio.coroutine
-    def f():
-        yield from p._sync_center()
-
-        data = yield from p._scatter([1, 2, 3])
-
-        assert merge(a.data, b.data) == \
-                {d.key: i for d, i in zip(data, [1, 2, 3])}
-
-        assert set(c.who_has) == {d.key for d in data}
-        assert all(len(v) == 1 for v in c.who_has.values())
-
-        yield from data[0]._delete()
-
-        assert merge(a.data, b.data) == \
-                {d.key: i for d, i in zip(data[1:], [2, 3])}
-
-        assert data[0].key not in c.who_has
-
-        yield from a._close()
-        yield from b._close()
-        yield from c._close()
-
-    loop.run_until_complete(asyncio.gather(c.go(), a.go(), b.go(), f()))
-
-
 def test_scatter_delete_sync():
     with cluster() as (c, a, b):
         pool = Pool(c.ip, c.port)
+
         x, y, z = pool.scatter([1, 2, 3])
 
         assert set(c.who_has) == {x.key, y.key, z.key}

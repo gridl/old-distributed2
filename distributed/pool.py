@@ -9,11 +9,10 @@ from toolz import merge, partial, pipe, concat, frequencies, concat, groupby
 from toolz.curried import map, filter
 
 from .core import read, write, connect, spawn_loop, sync, rpc
+from .client import RemoteData, scatter_to_workers
 
 
 log = print
-
-no_default = '__no_default__'
 
 
 class Pool(object):
@@ -55,7 +54,8 @@ class Pool(object):
         center = rpc(reader, writer)
         self.who_has = yield from center.who_has()
         self.has_what = yield from center.has_what()
-        self.available_cores = yield from center.ncores(close=True)
+        self.ncores = yield from center.ncores(close=True)
+        self.available_cores = self.ncores
         writer.close()
 
     @asyncio.coroutine
@@ -173,27 +173,9 @@ class Pool(object):
 
     @asyncio.coroutine
     def _scatter(self, data, key=None):
-        yield from self._sync_center()
-        if key is None:
-            key = str(uuid.uuid1())
-
-        workers = list(concat([w] * nc for w, nc in self.available_cores.items()))
-        names = ('%s-%d' % (key, i) for i in count(0))
-
-        L = list(zip(cycle(workers), names, data))
-        d = groupby(0, L)
-        d = {k: {b: c for a, b, c in v}
-              for k, v in d.items()}
-
-        coroutines = [rpc(*w).update_data(data=v)
-                      for w, v in d.items()]
-
-        yield from asyncio.gather(*coroutines, loop=self.loop)
-
-        result = [RemoteData(b, self.center_ip, self.center_port,
-                             self.loop, result=c)
-                    for a, b, c in L]
-
+        result = yield from scatter_to_workers(self.center_ip,
+                self.center_port, self.ncores, data, key=key,
+                loop=self.loop)
         return result
 
     def scatter(self, data, key=None):
@@ -258,63 +240,6 @@ class PendingComputation(object):
             return self._result
         except AttributeError:
             return sync(self.loop, self._get())
-
-
-class RemoteData(object):
-    """ Data living on a remote worker
-
-    This is created by ``PendingComputation.get()`` which is in turn created by
-    ``Pool.apply_async()``.  One can retrive the data from the remote worker by
-    calling the ``.get()`` method on this object
-
-    Example
-    -------
-
-    >>> pc = pool.apply_async(func, args, kwargs)  # doctest: +SKIP
-    >>> rd = pc.get()  # doctest: +SKIP
-    >>> rd.get()  # doctest: +SKIP
-    10
-    """
-    def __init__(self, key, center_ip, center_port, loop=None, status=None,
-            result=no_default):
-        self.key = key
-        self.loop = loop
-        self.status = status
-        self.center_ip = center_ip
-        self.center_port = center_port
-        self._result = result
-
-    @asyncio.coroutine
-    def _get(self, raiseit=True):
-        who_has = yield from rpc(self.center_ip, self.center_port).who_has(
-                keys=[self.key], close=True)
-        ip, port = random.choice(list(who_has[self.key]))
-        result = yield from rpc(ip, port).get_data(keys=[self.key], close=True)
-
-        self._result = result[self.key]
-
-        if raiseit and self.status == b'error':
-            raise self._result
-        else:
-            return self._result
-
-    def get(self):
-        if self._result is not no_default:
-            return self._result
-        else:
-            result = sync(self.loop, self._get(raiseit=False))
-            if self.status == b'error':
-                raise result
-            else:
-                return result
-
-    @asyncio.coroutine
-    def _delete(self):
-        yield from rpc(self.center_ip, self.center_port).delete_data(
-                keys=[self.key])
-
-    def delete(self):
-        sync(self.loop, self._delete())
 
 
 def choose_worker(needed, who_has, has_what, available_cores):

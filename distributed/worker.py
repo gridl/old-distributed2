@@ -125,6 +125,10 @@ class Worker(object):
     def log(self, *args):
         self._log.append(args)
 
+    @property
+    def address(self):
+        return (self.ip, self.port)
+
 
 job_counter = [0]
 
