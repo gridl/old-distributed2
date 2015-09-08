@@ -7,6 +7,33 @@ This is a proof-of-concept library to play with distributed computing in
 Python.
 
 
+Example
+-------
+
+.. code-block:: python
+
+   >>> from distributed import Cluster, Pool
+
+   >>> c = Cluster(hosts=['127.0.0.1:8788', '127.0.0.1:8789'],
+   ...             center='127.0.0.1:8787')
+
+   >>> p = Pool('127.0.0.1:8787')
+   >>> a, b, c = p.map(lambda x: x * 10, [1, 2, 3])
+   >>> a.get(), b.get(), c.get()
+   (10, 20, 30)
+
+   >>> p.close()
+   >>> c.close()
+
+
+Dependencies and Dependability
+------------------------------
+
+This uses the ``asyncio`` module within Python 3.4.
+
+This is research code, has major bugs, and lacks a stable API.
+
+
 Basic Model
 -----------
 
@@ -40,26 +67,6 @@ over sockets.
 
 At a high level we can build several interfaces.  This repository currently
 contains a ``Pool`` abstraction.
-
-
-Example
--------
-
-
-.. code-block:: python
-
-   >>> from distributed import Cluster, Pool
-
-   >>> c = Cluster(hosts=['127.0.0.1:8788', '127.0.0.1:8789'],
-   ...             center='127.0.0.1:8787')
-
-   >>> p = Pool('127.0.0.1:8787')
-   >>> a, b, c = p.map(lambda x: x * 10, [1, 2, 3])
-   >>> a.get(), b.get(), c.get()
-   (10, 20, 30)
-
-   >>> p.close()
-   >>> c.close()
 
 
 Motivation and Comparison
