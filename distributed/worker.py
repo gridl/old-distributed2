@@ -6,6 +6,7 @@ from multiprocessing.pool import ThreadPool
 from .core import (read, write, connect, delay, client_connected, get_data,
         spawn_loop, rpc, sync)
 from . import core
+from .client import collect_from_center
 
 
 _ncores = ThreadPool()._processes
@@ -125,21 +126,6 @@ class Worker(object):
         self._log.append(args)
 
 
-@asyncio.coroutine
-def collect(loop, reader, writer, needed=None):
-    """ Collect data from peers """
-    who_has = yield from rpc(reader, writer).who_has(keys=needed, loop=loop)
-    assert set(who_has) == set(needed)
-
-    coroutines = [rpc(*random.choice(list(addresses))).get_data(keys=[key],
-            loop=loop) for key, addresses in who_has.items()]
-
-    results = yield from asyncio.gather(*coroutines, loop=loop)
-
-    # TODO: Update metadata to say that we have this data
-    return merge(results)
-
-
 job_counter = [0]
 
 @asyncio.coroutine
@@ -154,7 +140,7 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer,
     # Collect data from peers
     if needed:
         log("Collect data from peers: %s" % str(needed))
-        other = yield from collect(loop, m_reader, m_writer, needed)
+        other = yield from collect_from_center(loop, m_reader, m_writer, needed)
         data2 = merge(data, other)
     else:
         data2 = data
