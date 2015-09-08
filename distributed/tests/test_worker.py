@@ -109,3 +109,21 @@ def test_workers_update_center():
         yield from c._close()
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), f(), loop=loop))
+
+
+def test_close():
+    c = Center('127.0.0.1', 8007, loop=loop)
+    a = Worker('127.0.0.1', 8008, c.ip, c.port, loop=loop)
+
+    @asyncio.coroutine
+    def f():
+        while len(c.ncores) < 1:
+            yield from asyncio.sleep(0.01, loop=loop)
+
+        assert a.status == 'running'
+        yield from rpc(a.ip, a.port, loop=loop).terminate()
+        assert a.status == 'closed'
+
+        yield from c._close()
+
+    loop.run_until_complete(asyncio.gather(c.go(), a.go(), f(), loop=loop))

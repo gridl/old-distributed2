@@ -74,7 +74,13 @@ class Worker(object):
                                            self.center_ip, self.center_port),
                     'delete_data': partial(delete_data, self.loop, self.data,
                                            self.ip, self.port,
-                                           self.center_ip, self.center_port)}
+                                           self.center_ip, self.center_port),
+                    'terminate': self._terminate}
+
+        self.server = yield from asyncio.start_server(
+                client_connected(handlers), self.bind, self.port,
+                loop=self.loop)
+        self.log('Start Server', self.bind, self.port)
 
         resp = yield from rpc(self.center_ip, self.center_port).register(
                               ncores=self.ncores, address=(self.ip, self.port),
@@ -84,10 +90,6 @@ class Worker(object):
         self.log('Register with Center', self.center_ip, self.center_port,
                 self.ip, self.port)
 
-        self.server = yield from asyncio.start_server(
-                client_connected(handlers), self.bind, self.port,
-                loop=self.loop)
-        self.log('Start Server', self.bind, self.port)
         log('Start worker')
         self.status = 'running'
         yield from self.server.wait_closed()
@@ -121,6 +123,10 @@ class Worker(object):
         result = sync(self._close(), self.loop)
         if hasattr(self, '_thread'):
             self._thread.join()
+
+    @asyncio.coroutine
+    def _terminate(self, reader, writer):
+        yield from self._close()
 
     def log(self, *args):
         self._log.append(args)
