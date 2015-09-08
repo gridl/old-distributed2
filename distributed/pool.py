@@ -98,15 +98,14 @@ class Pool(object):
         return output
 
     def map(self, func, seq, **kwargs):
-        return sync(self.loop, self._map(func, seq, **kwargs))
+        return sync(self._map(func, seq, **kwargs), self.loop)
 
     def sync_center(self):
         """ Get who_has and has_what dictionaries from a center
 
         In particular this tells us what workers we have at our disposal
         """
-        cor = self._sync_center()
-        return sync(self.loop, cor)
+        return sync(self._sync_center(), self.loop)
 
     def start(self):
         """ Start an event loop in a thread """
@@ -129,7 +128,7 @@ class Pool(object):
                 result = yield from r.close(close=True)
 
     def close_connections(self):
-        sync(self.loop, self._close_connections())
+        sync(self._close_connections(), self.loop)
 
 
     def close(self):
@@ -165,8 +164,7 @@ class Pool(object):
         If an arg or a kwarg is a ``RemoteData`` object then that data will be
         communicated as necessary among the ``Worker`` peers.
         """
-        cor = self._apply_async(func, args, kwargs, key)
-        return sync(self.loop, cor)
+        return sync(self._apply_async(func, args, kwargs, key), self.loop)
 
     def apply(self, func, args=(), kwargs={}, key=None):
         return self.apply_async(func, args, kwargs, key).get()
@@ -179,7 +177,7 @@ class Pool(object):
         return result
 
     def scatter(self, data, key=None):
-        return sync(self.loop, self._scatter(data, key))
+        return sync(self._scatter(data, key), self.loop)
 
 
 class PendingComputation(object):
@@ -239,7 +237,7 @@ class PendingComputation(object):
         try:
             return self._result
         except AttributeError:
-            return sync(self.loop, self._get())
+            return sync(self._get(), self.loop)
 
 
 def choose_worker(needed, who_has, has_what, available_cores):

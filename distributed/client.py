@@ -77,7 +77,7 @@ class RemoteData(object):
         if self._result is not no_default:
             return self._result
         else:
-            result = sync(self.loop, self._get(raiseit=False))
+            result = sync(self._get(raiseit=False), self.loop)
             if self.status == b'error':
                 raise result
             else:
@@ -89,7 +89,7 @@ class RemoteData(object):
                 keys=[self.key])
 
     def delete(self):
-        sync(self.loop, self._delete())
+        sync(self._delete(), self.loop)
 
 
 @asyncio.coroutine

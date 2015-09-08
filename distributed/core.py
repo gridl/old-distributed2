@@ -188,7 +188,7 @@ class rpc(object):
         return _
 
 
-def sync(loop, cor):
+def sync(cor, loop=None):
     """ Run coroutine in event loop running in other thread
 
     Block and return result.
@@ -196,6 +196,7 @@ def sync(loop, cor):
     See Also:
         spawn_loop: start up a long running coroutine
     """
+    loop = loop or asyncio.get_event_loop()
     q = Queue()
     @asyncio.coroutine
     def f():

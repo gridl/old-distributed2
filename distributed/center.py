@@ -66,7 +66,7 @@ class Center(object):
         self.server.close()
 
     def close(self):
-        sync(self.loop, self._close())
+        sync(self._close(), self.loop)
         if hasattr(self, '_thread'):
             self._thread.join()
 

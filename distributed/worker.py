@@ -118,7 +118,7 @@ class Worker(object):
         self.status = 'closed'
 
     def close(self):
-        result = sync(self.loop, self._close())
+        result = sync(self._close(), self.loop)
         if hasattr(self, '_thread'):
             self._thread.join()
 
