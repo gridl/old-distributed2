@@ -175,6 +175,9 @@ def test_map_locality():
     p = Pool(c.ip, c.port, loop=loop, start=False)
     @asyncio.coroutine
     def f():
+        while len(c.ncores) < 2:
+            yield from asyncio.sleep(0.01, loop=loop)
+
         yield from p._sync_center()
 
         results = yield from p._map(lambda x: x * 1000, list(range(20)))

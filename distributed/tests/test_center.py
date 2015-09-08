@@ -63,6 +63,8 @@ def test_delete_data():
     a = Worker('127.0.0.1', 8038, c.ip, c.port, loop=loop)
     @asyncio.coroutine
     def f():
+        while len(c.ncores) < 1:
+            yield from asyncio.sleep(0.01, loop=loop)
         yield from rpc(a.ip, a.port).update_data(data={'x': 1, 'y': 2})
         assert a.data == {'x': 1, 'y': 2}
         yield from rpc(c.ip, c.port).add_keys(address=(a.ip, a.port),
