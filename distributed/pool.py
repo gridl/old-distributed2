@@ -414,7 +414,7 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
             continue
         if i in running:
             passed.add(i)
-            log("Passing on %s" % str(i))
+            log("%s: Passing on %s" % (str(ident), str(i)))
             continue
 
         running.add(i)
@@ -443,7 +443,7 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
         if i in finished:                       # We're redundant here
             continue
 
-        log("Redundantly computing %s" % str(i))
+        log("%s: Redundantly computing %s" % (str(ident), str(i)))
         yield from _handle_task(tasks[i])
         mark_done(i)
         who_has[tasks[i]['key']].add(ident)
@@ -465,7 +465,7 @@ def handle_worker(loop, who_has, has_what, tasks, shares, extra,
         # If we found one then run it
         if j < len(jobs):
             i = jobs[-j]
-            log("Stealing %s" % str(i))
+            log("%s <- %s: Stealing %s" % (str(ident), str(worker), str(i)))
         else:
             break
 
