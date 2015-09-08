@@ -60,6 +60,7 @@ def connect(host, port, delay=0.1, timeout=1, loop=None):
                     host=host, port=port, loop=loop)
         except OSError:
             if timeout is not None and time() - start > timeout:
+                log("Connection to %s:%d timed out' % (host, port)")
                 raise
             else:
                 yield from asyncio.sleep(delay, loop=loop)
