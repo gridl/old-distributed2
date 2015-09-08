@@ -37,6 +37,7 @@ class Center(object):
         self.has_what = defaultdict(set)
         self.ncores = dict()
         self.loop = loop or asyncio.new_event_loop()
+        self.status = None
 
         if start:
             self.start(block)
@@ -48,12 +49,15 @@ class Center(object):
                                  register, ncores, unregister]}
         handlers['delete_data'] = partial(delete_data, self.loop, self.who_has,
                 self.has_what)
+        handlers['terminate'] = self._terminate
 
         self.server = yield from asyncio.start_server(
                 client_connected(handlers), self.bind, self.port,
                 loop=self.loop)
+        self.status = 'running'
         log("Center server up")
         yield from self.server.wait_closed()
+        self.status = 'closed'
 
     def start(self, block):
         if block:
@@ -63,7 +67,12 @@ class Center(object):
 
     @asyncio.coroutine
     def _close(self):
+        self.status = 'closing'
         self.server.close()
+
+    @asyncio.coroutine
+    def _terminate(self, reader, writer):
+        yield from self._close()
 
     def close(self):
         sync(self._close(), self.loop)

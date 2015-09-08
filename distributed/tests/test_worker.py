@@ -106,6 +106,8 @@ def test_close():
         yield from rpc(a.ip, a.port, loop=loop).terminate()
         assert a.status == 'closed'
 
-        yield from c._close()
+        assert c.status == 'running'
+        yield from rpc(c.ip, c.port, loop=loop).terminate()
+        assert c.status == 'closed'
 
     loop.run_until_complete(asyncio.gather(c.go(), a.go(), f(), loop=loop))
