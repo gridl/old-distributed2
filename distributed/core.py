@@ -102,7 +102,11 @@ def client_connected(handlers, reader, writer):
             if close:
                 break
     finally:
-        writer.close()
+        try:
+            writer.close()
+        except Exception as e:
+            log("Failed while closing writer")
+            log(str(e))
 
 
 def pingpong(reader, writer):
