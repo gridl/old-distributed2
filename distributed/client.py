@@ -2,7 +2,7 @@ import asyncio
 import random
 import uuid
 from itertools import count, cycle
-from collections import Iterable
+from collections import Iterable, defaultdict
 
 from toolz import merge, concat, groupby
 
@@ -12,22 +12,30 @@ from .core import rpc, sync
 no_default = '__no_default__'
 
 @asyncio.coroutine
-def collect_from_center(loop, ip, port, needed=None):
+def collect_from_center(ip, port, needed=None, loop=None):
     """ Collect data from peers """
+    needed = [n.key if isinstance(n, RemoteData) else n for n in needed]
     who_has = yield from rpc(ip, port).who_has(keys=needed, loop=loop)
 
     assert set(who_has) == set(needed)
 
-    result = yield from collect_from_workers(loop, who_has)
-    return result
+    result = yield from collect_from_workers(who_has, loop=loop)
+    return [result[key] for key in needed]
 
 
 @asyncio.coroutine
-def collect_from_workers(loop, who_has):
+def collect_from_workers(who_has, loop=None):
     """ Collect data from peers """
-    coroutines = [rpc(*random.choice(list(addresses))).get_data(
-                        keys=[key], loop=loop)
-                        for key, addresses in who_has.items()]
+    d = defaultdict(list)
+    for key, addresses in who_has.items():
+        addr = random.choice(list(addresses))
+        d[addr].append(key)
+
+    print(who_has)
+    print(d)
+
+    coroutines = [rpc(*addr).get_data(keys=keys, loop=loop)
+                        for addr, keys in d.items()]
 
     results = yield from asyncio.gather(*coroutines, loop=loop)
 

@@ -1,9 +1,11 @@
 import asyncio
+from time import sleep
 
 from toolz import merge
 
 from distributed import Center, Worker
-from distributed.client import scatter_to_center, scatter_to_workers
+from distributed.client import (scatter_to_center, scatter_to_workers,
+        collect_from_center)
 from distributed.core import sync
 
 
@@ -58,10 +60,15 @@ def test_sync_interactively():
             start=True, block=False)
 
     try:
+        while len(c.ncores) < 2:
+            sleep(0.01)
         values = [1, 2, 3, 4, 5, 6, 7, 8]
         data = sync(scatter_to_center(c.ip, c.port, values))
         assert merge(a.data, b.data) == {d.key: v for d, v in zip(data,
             values)}
+
+        results = sync(collect_from_center(c.ip, c.port, data))
+        assert results == values
     finally:
         a.close()
         b.close()
