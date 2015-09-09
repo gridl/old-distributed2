@@ -262,7 +262,7 @@ def test_scatter_delete_sync():
                                                         (b.ip, b.port)})
         assert merge(a.data, b.data) == {x.key: 1, z.key: 3}
 
-        X, Z = pool.collect([x, z])
+        X, Z = pool.gather([x, z])
         assert [X, Z] == [1, 3]
 
         pool.close()
