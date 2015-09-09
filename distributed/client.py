@@ -31,9 +31,6 @@ def collect_from_workers(who_has, loop=None):
         addr = random.choice(list(addresses))
         d[addr].append(key)
 
-    print(who_has)
-    print(d)
-
     coroutines = [rpc(*addr).get_data(keys=keys, loop=loop)
                         for addr, keys in d.items()]
 
