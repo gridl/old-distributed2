@@ -185,8 +185,8 @@ def test_map_locality():
         assert p.has_what[(a.ip, a.port)].issuperset(a.data)
         assert p.has_what[(b.ip, b.port)].issuperset(b.data)
         s = {(a.ip, a.port), (b.ip, b.port)}
-        for result in results:
-            assert p.who_has[result.key].issubset(s)
+
+        assert all(p.who_has[result.key].issubset(s) for result in results)
 
         results2 = yield from p._map(lambda x: -x, results)
 
@@ -261,5 +261,8 @@ def test_scatter_delete_sync():
         assert set.union(*c.who_has.values()).issubset({(a.ip, a.port),
                                                         (b.ip, b.port)})
         assert merge(a.data, b.data) == {x.key: 1, z.key: 3}
+
+        X, Z = pool.collect([x, z])
+        assert [X, Z] == [1, 3]
 
         pool.close()

@@ -9,7 +9,7 @@ from toolz import merge, partial, pipe, concat, frequencies, concat, groupby
 from toolz.curried import map, filter
 
 from .core import read, write, connect, spawn_loop, sync, rpc
-from .client import RemoteData, scatter_to_workers
+from .client import RemoteData, scatter_to_workers, collect_from_center
 
 
 log = print
@@ -179,6 +179,15 @@ class Pool(object):
 
     def scatter(self, data, key=None):
         return sync(self._scatter(data, key), self.loop)
+
+    @asyncio.coroutine
+    def _collect(self, data):
+        result = yield from collect_from_center(self.center_ip,
+                self.center_port, data, loop=self.loop)
+        return result
+
+    def collect(self, data):
+        return sync(self._collect(data), self.loop)
 
 
 class PendingComputation(object):
