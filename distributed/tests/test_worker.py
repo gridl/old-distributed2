@@ -17,25 +17,28 @@ def test_worker():
 
     @asyncio.coroutine
     def f():
-        a_reader, a_writer = yield from connect('127.0.0.1', a.port, loop=loop)
-        b_reader, b_writer = yield from connect('127.0.0.1', b.port, loop=loop)
+        while len(c.ncores) < 2:
+            yield from asyncio.sleep(0.01, loop=loop)
+        a_reader, a_writer = yield from connect(a.ip, a.port, loop=loop)
+        b_reader, b_writer = yield from connect(b.ip, b.port, loop=loop)
 
         response = yield from rpc(a_reader, a_writer).compute(
-            key='x', function=add, args=[1, 2], needed=[], reply=True)
+            key='x', function=add, args=[1, 2], needed=[])
         assert response == b'success'
         assert a.data['x'] == 3
-        assert c.who_has['x'] == set([('127.0.0.1', a.port)])
+        assert c.who_has['x'] == set([(a.ip, a.port)])
 
         response = yield from rpc(b_reader, b_writer).compute(
-            key='y', function=add, args=['x', 10], needed=['x'], reply=True)
+            key='y', function=add, args=['x', 10], needed=['x'])
         assert response == b'success'
         assert b.data['y'] == 13
-        assert c.who_has['y'] == set([('127.0.0.1', b.port)])
+        assert c.who_has['y'] == set([(b.ip, b.port)])
 
         def bad_func():
             1 / 0
+
         response = yield from rpc(b_reader, b_writer).compute(
-            key='z', function=bad_func, args=(), needed=(), reply=True)
+            key='z', function=bad_func, args=(), needed=())
         assert response == b'error'
         assert isinstance(b.data['z'], ZeroDivisionError)
 
@@ -55,7 +58,6 @@ def test_worker():
 
     loop.run_until_complete(
             asyncio.gather(c.go(), a.go(), b.go(), f(), loop=loop))
-
 
 
 def test_thread():

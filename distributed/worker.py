@@ -144,8 +144,9 @@ def work(loop, data, ip, port, metadata_ip, metadata_port, reader, writer,
     # Collect data from peers
     if needed:
         log("Collect data from peers: %s" % str(needed))
-        other = yield from collect_from_center(loop, m_reader, m_writer, needed)
-        data2 = merge(data, other)
+        other = yield from collect_from_center(m_reader, m_writer, needed,
+                loop=loop)
+        data2 = merge(data, dict(zip(needed, other)))
     else:
         data2 = data
 
