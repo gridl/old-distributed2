@@ -5,7 +5,7 @@ from .core import rpc, sync
 
 log = print
 
-def normalize_host_port(x, default_port=8787):
+def normalize_host_port(x, default_port=8788):
     """ Normalize input to host, port pair
 
     >>> normalize_host_port('127.0.0.1:8000')
@@ -23,6 +23,10 @@ def normalize_host_port(x, default_port=8787):
         host, port = x, default_port
     port = int(port)
     return (host, port)
+
+
+def distinct(seq):
+    return len(seq) == len(set(seq))
 
 
 class Cluster(object):
@@ -51,10 +55,15 @@ class Cluster(object):
         center = center or hosts[0]
         self.center, self.center_port = normalize_host_port(center, 8787)
 
-        self.host_ports = tuple(normalize_host_port(host, 8787)
+        self.host_ports = tuple(normalize_host_port(host, 8788)
                                 for host in hosts)
-        self.auth = auth
+        if not distinct(self.host_ports):
+            raise ValueError("Repeated host-port pairs.")
 
+        if (self.center, self.center_port) in self.host_ports:
+            raise ValueError("Center host-port pair overlaps with a host")
+
+        self.auth = auth
         self.start()
 
     @property
